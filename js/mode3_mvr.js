@@ -1,8 +1,8 @@
 // =====================================================================
 // mode3_mvr.js: 模式三 (MVR 喷水计算) 模块
-// 版本: v3.3 (MVR Pro) - 已由 AI 最终修正 "R718" 逻辑
-// 职责: 1. 初始化模式三 v3.1 的 UI 事件
-//        2. 执行基于灵活 P/T/过热度 输入的 MVR 能量平衡计算
+// 版本: v3.5 (MVR Pro) - 修正出口 0 过热度逻辑
+// 职责: 1. 初始化模式三 v3.5 的 UI 事件
+//        2. 执行基于灵活 P/T/过热度/流量 输入的 MVR 能量平衡计算
 //        3. 处理打印
 // =====================================================================
 
@@ -45,7 +45,7 @@ function setButtonFresh() {
 
 
 /**
- * (v3.1) 模式三：主计算函数 (MVR 喷水 Pro)
+ * (v3.5) 模式三：主计算函数 (MVR 喷水 Pro)
  */
 function calculateMode3() {
     try {
@@ -53,7 +53,7 @@ function calculateMode3() {
         const fluid = fluidSelectM3.value; // 'Water'
         
         // 压缩机
-        const flow_mode_m3 = document.querySelector('input[name="flow_mode_m3"]:checked').value;
+        const flow_mode_m3 = document.querySelector('input[name="flow_mode_m3"]:checked').value; // 'rpm', 'vol', 'mass'
         const eta_s_m3 = parseFloat(document.getElementById('eta_s_m3').value);
         const eta_v_m3 = parseFloat(document.getElementById('eta_v_m3').value);
         
@@ -80,31 +80,7 @@ function calculateMode3() {
              throw new Error("效率必须大于零。");
         }
 
-        // --- B. (v3.1) 标准化理论流量 (V_th_m3_s) ---
-        let V_th_m3_s;
-        if (flow_mode_m3 === 'rpm') {
-            const rpm_val = parseFloat(document.getElementById('rpm_m3').value);
-            const displacement_m3 = parseFloat(document.getElementById('displacement_m3').value);
-            if (isNaN(rpm_val) || isNaN(displacement_m3) || rpm_val <= 0 || displacement_m3 <= 0) {
-                throw new Error("转速和排量必须是大于零的数字。");
-            }
-            V_th_m3_s = (displacement_m3 / 1e6) * (rpm_val / 60);
-        } else {
-            const flow_val = parseFloat(document.getElementById('flow_m3').value);
-            const flow_unit = document.getElementById('flow_unit_m3').value;
-            if (isNaN(flow_val) || flow_val <= 0) {
-                throw new Error("理论体积流量必须是大于零的数字。");
-            }
-            if (flow_unit === 'm3/h') {
-                V_th_m3_s = flow_val / 3600;
-            } else if (flow_unit === 'L/min') {
-                V_th_m3_s = flow_val / 1000 / 60;
-            } else { // m3/s
-                V_th_m3_s = flow_val;
-            }
-        }
-
-        // --- C. (v3.1) 标准化工艺压力 (Pe_Pa, Pc_Pa) 和饱和温度 (T_sat_in_K, T_sat_out_K) ---
+        // --- (v3.4) B. 标准化工艺压力 (Pe_Pa, Pc_Pa) 和饱和温度 (T_sat_in_K, T_sat_out_K) ---
         let Pe_Pa, T_sat_in_K;
         if (inlet_mode_m3 === 'temp') {
             if (isNaN(Te_C_in)) throw new Error("入口饱和温度无效。");
@@ -131,36 +107,99 @@ function calculateMode3() {
             throw new Error("出口压力必须高于入口压力。");
         }
         
-        // --- D. (v3.1) 计算实际入口状态 (State 1) ---
-        const T_1_actual_K = T_sat_in_K + superheat_in_K;
-        const h_1_actual = CP_INSTANCE.PropsSI('H', 'T', T_1_actual_K, 'P', Pe_Pa, fluid);
-        const s_1_actual = CP_INSTANCE.PropsSI('S', 'T', T_1_actual_K, 'P', Pe_Pa, fluid);
-        const rho_1_actual = CP_INSTANCE.PropsSI('D', 'T', T_1_actual_K, 'P', Pe_Pa, fluid);
+        // --- (v3.4) C. 计算实际入口状态 (State 1) ---
+        let T_1_actual_K, h_1_actual, s_1_actual, rho_1_actual;
+        if (superheat_in_K > 0) {
+            T_1_actual_K = T_sat_in_K + superheat_in_K;
+            h_1_actual = CP_INSTANCE.PropsSI('H', 'T', T_1_actual_K, 'P', Pe_Pa, fluid);
+            s_1_actual = CP_INSTANCE.PropsSI('S', 'T', T_1_actual_K, 'P', Pe_Pa, fluid);
+            rho_1_actual = CP_INSTANCE.PropsSI('D', 'T', T_1_actual_K, 'P', Pe_Pa, fluid);
+        } else {
+            // (v3.4 修正) 0过热度, 明确使用 Q=1 (饱和蒸汽)
+            T_1_actual_K = T_sat_in_K;
+            h_1_actual = CP_INSTANCE.PropsSI('H', 'P', Pe_Pa, 'Q', 1, fluid);
+            s_1_actual = CP_INSTANCE.PropsSI('S', 'P', Pe_Pa, 'Q', 1, fluid);
+            rho_1_actual = CP_INSTANCE.PropsSI('D', 'P', Pe_Pa, 'Q', 1, fluid);
+        }
 
-        // --- E. (v3.1) 计算实际目标出口状态 (State 2 Target) ---
-        const T_2_target_K = T_sat_out_K + superheat_out_K;
-        const h_2_target = CP_INSTANCE.PropsSI('H', 'T', T_2_target_K, 'P', Pc_Pa, fluid);
+        // --- (v3.5) D. 计算实际目标出口状态 (State 2 Target) ---
+        let T_2_target_K, h_2_target;
+        if (superheat_out_K > 0) {
+            T_2_target_K = T_sat_out_K + superheat_out_K;
+            h_2_target = CP_INSTANCE.PropsSI('H', 'T', T_2_target_K, 'P', Pc_Pa, fluid);
+        } else {
+            // (v3.5 修正) 0过热度, 明确使用 Q=1 (饱和蒸汽)
+            T_2_target_K = T_sat_out_K; // 目标温度即为饱和温度
+            h_2_target = CP_INSTANCE.PropsSI('H', 'P', Pc_Pa, 'Q', 1, fluid);
+        }
 
-        // --- F. 计算喷水入口状态 (water_in) ---
+
+        // --- (v3.4) E. 计算喷水入口状态 (water_in) ---
         const T_water_in_K = T_water_in_C + 273.15;
         // 关键修正 (v3.3): 必须使用 "R718" (水的无歧义制冷剂编号)
-        // "H2O" 和 "Water" 在此库中似乎被错误地指向了其他工质
         const h_water_in = CP_INSTANCE.PropsSI('H', 'T', T_water_in_K, 'Q', 0, "R718");
 
 
-        // --- G. (v3.1) 计算流量和功率 ---
-        const V_act_m3_s = V_th_m3_s * eta_v_m3;
-        const m_dot_gas = V_act_m3_s * rho_1_actual;
+        // --- (v3.4) F. 计算流量和功率 ---
+        let m_dot_gas, V_th_m3_s, V_act_m3_s;
+
+        if (flow_mode_m3 === 'rpm' || flow_mode_m3 === 'vol') {
+            // (v3.4) 模式: 按体积
+            if (flow_mode_m3 === 'rpm') {
+                const rpm_val = parseFloat(document.getElementById('rpm_m3').value);
+                const displacement_m3 = parseFloat(document.getElementById('displacement_m3').value);
+                if (isNaN(rpm_val) || isNaN(displacement_m3) || rpm_val <= 0 || displacement_m3 <= 0) {
+                    throw new Error("转速和排量必须是大于零的数字。");
+                }
+                V_th_m3_s = (displacement_m3 / 1e6) * (rpm_val / 60);
+            } else { // 'vol'
+                const flow_val = parseFloat(document.getElementById('flow_m3').value);
+                const flow_unit = document.getElementById('flow_unit_m3').value;
+                if (isNaN(flow_val) || flow_val <= 0) {
+                    throw new Error("理论体积流量必须是大于零的数字。");
+                }
+                if (flow_unit === 'm3/h') {
+                    V_th_m3_s = flow_val / 3600;
+                } else if (flow_unit === 'L/min') {
+                    V_th_m3_s = flow_val / 1000 / 60;
+                } else { // m3/s
+                    V_th_m3_s = flow_val;
+                }
+            }
+            V_act_m3_s = V_th_m3_s * eta_v_m3;
+            m_dot_gas = V_act_m3_s * rho_1_actual; // m_dot = V_act * rho
+
+        } else { // 'mass'
+            // (v3.4) 模式: 按质量
+            const flow_val = parseFloat(document.getElementById('flow_mass_m3').value);
+            const flow_unit = document.getElementById('flow_mass_unit_m3').value;
+            if (isNaN(flow_val) || flow_val <= 0) {
+                throw new Error("理论质量流量必须是大于零的数字。");
+            }
+            
+            if (flow_unit === 't/h') {
+                m_dot_gas = (flow_val * 1000) / 3600;
+            } else if (flow_unit === 'kg/h') {
+                m_dot_gas = flow_val / 3600;
+            } else { // kg/s
+                m_dot_gas = flow_val;
+            }
+            
+            // (v3.4) 反算体积流量
+            V_act_m3_s = m_dot_gas / rho_1_actual;
+            V_th_m3_s = V_act_m3_s / eta_v_m3;
+        }
         
-        // G.1: 找到干式压缩的等熵出口 (2s)
+        // --- F.1: 计算功率 ---
+        // F.1.1: 找到干式压缩的等熵出口 (2s)
         const h_2s = CP_INSTANCE.PropsSI('H', 'P', Pc_Pa, 'S', s_1_actual, fluid);
         const T_2s_K = CP_INSTANCE.PropsSI('T', 'P', Pc_Pa, 'S', s_1_actual, fluid);
         
-        // G.2: 计算干式等熵功率 (Ws) 和实际轴功率 (W_shaft)
+        // F.1.2: 计算干式等熵功率 (Ws) 和实际轴功率 (W_shaft)
         const Ws_W = m_dot_gas * (h_2s - h_1_actual);
         const W_shaft_W = Ws_W / eta_s_m3;
 
-        // --- H. (v3.1) 求解喷水量 (m_dot_water) ---
+        // --- G. (v3.4) 求解喷水量 (m_dot_water) ---
         // W_shaft_W + m_dot_gas*h_1_actual + m_dot_water*h_water_in = (m_dot_gas + m_dot_water) * h_2_target
         // W_shaft_W = m_dot_gas*(h_2_target - h_1_actual) + m_dot_water*(h_2_target - h_water_in)
         // m_dot_water = ( W_shaft_W - m_dot_gas*(h_2_target - h_1_actual) ) / (h_2_target - h_water_in)
@@ -170,7 +209,7 @@ function calculateMode3() {
         const energy_per_kg_water = h_2_target - h_water_in;
 
         if (energy_per_kg_water <= 0) {
-            throw new Error("计算错误：每kg喷水吸收的能量 (h2_target - h_water_in) 小于等于零。");
+            throw new Error(`计算错误：每kg喷水吸收的能量 (h2_target - h_water_in) 小于等于零。 (${(energy_per_kg_water/1000).toFixed(2)} kJ/kg)`);
         }
         
         // (v3.1) 新校验：如果多余能量为负，说明不需要喷水
@@ -190,7 +229,7 @@ function calculateMode3() {
         
         const m_dot_water = energy_excess_W / energy_per_kg_water;
         
-        // --- I. (v3.1) 格式化输出 ---
+        // --- H. (v3.4) 格式化输出 ---
         let output = `
 --- 工艺状态点 ---
 入口 (Inlet):
@@ -210,7 +249,7 @@ function calculateMode3() {
 --- 干式压缩机性能 (无喷水) ---
 理论排量 (V_th): ${V_th_m3_s.toFixed(5)} m³/s (${(V_th_m3_s * 3600).toFixed(2)} m³/h)
 实际吸气 (V_act): ${V_act_m3_s.toFixed(5)} m³/s (基于 η_v = ${eta_v_m3.toFixed(3)})
-干蒸汽质量流 (m_dot_gas): ${m_dot_gas.toFixed(5)} kg/s
+干蒸汽质量流 (m_dot_gas): ${m_dot_gas.toFixed(5)} kg/s (${(m_dot_gas * 3600).toFixed(2)} kg/h)
 
 --- 功率平衡 (能量平衡法) ---
 干式等熵出口 (T2s): ${(T_2s_K - 273.15).toFixed(2)} °C (h2s: ${(h_2s / 1000).toFixed(2)} kJ/kg)
@@ -250,7 +289,7 @@ function calculateMode3() {
 }
 
 /**
- * (v3.1) 准备模式三的打印报告
+ * (v3.5) 准备模式三的打印报告
  */
 function printReportMode3() {
     if (!lastMode3ResultText) {
@@ -258,18 +297,28 @@ function printReportMode3() {
         return;
     }
     
-    // 动态收集输入
+    const flow_mode_val = document.querySelector('input[name="flow_mode_m3"]:checked').value;
+    let flow_mode_desc = '';
+    if (flow_mode_val === 'rpm') {
+        flow_mode_desc = '按转速与排量';
+    } else if (flow_mode_val === 'vol') {
+        flow_mode_desc = '按体积流量';
+    } else {
+        flow_mode_desc = '按质量流量';
+    }
+
     const inputs = {
-        "报告类型": "模式三: MVR 喷水计算 (v3.1)",
+        "报告类型": `模式三: MVR 喷水计算 (v3.5)`, // 版本更新
         "工质": fluidSelectM3.value,
-        "理论输气量模式": document.querySelector('input[name="flow_mode_m3"]:checked').value === 'rpm' ? '按转速与排量' : '按体积流量',
+        "理论输气量模式": flow_mode_desc,
         "转速 (RPM)": document.getElementById('rpm_m3').value,
         "每转排量 (cm³/rev)": document.getElementById('displacement_m3').value,
         "理论体积流量": document.getElementById('flow_m3').value + " " + document.getElementById('flow_unit_m3').value,
+        "理论质量流量": document.getElementById('flow_mass_m3').value + " " + document.getElementById('flow_mass_unit_m3').value,
         "等熵效率 (η_s)": document.getElementById('eta_s_m3').value,
         "容积效率 (η_v)": document.getElementById('eta_v_m3').value,
         "入口状态定义": document.querySelector('input[name="inlet_mode_m3"]:checked').value === 'temp' ? '按饱和温度' : '按饱和压力',
-        "入口饱和温度 (°C)": document.getElementById('temp_evap_mm3').value,
+        "入口饱和温度 (°C)": document.getElementById('temp_evap_m3').value,
         "入口饱和压力 (bar)": document.getElementById('press_evap_m3').value,
         "入口过热度 (K)": document.getElementById('superheat_in_m3').value,
         "出口状态定义": document.querySelector('input[name="outlet_mode_m3"]:checked').value === 'temp' ? '按饱和温度' : '按饱和压力',
@@ -322,7 +371,7 @@ function callPrint(printHtml) {
 
 
 /**
- * (v3.1) 模式三：初始化函数
+ * (v3.5) 模式三：初始化函数
  * @param {object} CP - CoolProp 实例
  */
 export function initMode3(CP) {
@@ -357,5 +406,5 @@ export function initMode3(CP) {
     // 绑定打印按钮
     printButtonM3.addEventListener('click', printReportMode3);
     
-    console.log("模式三 (MVR v3.3) 已初始化。");
+    console.log("模式三 (MVR v3.5) 已初始化。");
 }

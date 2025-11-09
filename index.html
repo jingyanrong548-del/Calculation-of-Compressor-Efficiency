@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>压缩机性能计算器 v3.2 (MVR Pro + Air)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>压缩机性能计算器 v3.5 (MVR Pro + Air)</title> <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* ... 样式表 (无变化) ... */
         .input-group {
             margin-bottom: 0.75rem; /* 12px */
         }
@@ -151,7 +151,7 @@
 <body class="bg-gray-100 font-sans antialiased">
 
     <div class="container mx-auto p-4 sm:p-8 max-w-4xl">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">压缩机性能计算器 v3.2 (MVR Pro + Air)</h1>
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">压缩机性能计算器 v3.5 (MVR Pro + Air)</h1>
         
         <div class="flex border-b-2 border-gray-300 mb-0">
             <button id="tab-btn-dry" class="tab-button active">
@@ -161,6 +161,7 @@
                 💧 MVR 喷水 (模式 3)
             </button>
         </div>
+
 
         <div id="tab-content-dry" class="tab-content active">
             
@@ -568,13 +569,11 @@
             <div id="mode-3-container">
                 <div class="bg-white p-6 sm:p-8">
 
-                    <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">模式三: MVR 喷水计算 (v3.1)</h2>
-                    
-                    <form id="calc-form-mode-3">
+                    <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">模式三: MVR 喷水计算 (v3.5)</h2> <form id="calc-form-mode-3">
                         <h2 class="text-2xl font-semibold text-purple-700 mb-4 border-b pb-2">1. 输入参数 (模式三)</h2>
                         <blockquote class="bg-purple-50 border-l-4 border-purple-500 text-purple-800 p-4 mb-4" role="alert">
                             <p><b>适用范围:</b> 无油螺杆、无油罗茨等容积式压缩机在 MVR 喷水场景下的计算。</p>
-                            <p class="mt-1"><b>计算目标:</b> 根据能量平衡，计算为达到“目标出口过热度”所需的**喷水量**。</p>
+                            <p class="mt-1"><b>计算目标:</b> 根据能量平衡，计算为达到“目标出口过热度”所需的喷水量。</p>
                         </blockquote>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6">
@@ -596,7 +595,7 @@
                                     
                                     <div class="input-group">
                                         <label class="block text-sm font-medium text-gray-700 mb-1">理论输气量模式</label>
-                                        <div class="flex space-x-4">
+                                        <div class="flex flex-col space-y-2">
                                             <label class="inline-flex items-center">
                                                 <input type="radio" name="flow_mode_m3" value="rpm" class="form-radio" checked>
                                                 <span class="ml-2">按转速与排量</span>
@@ -604,6 +603,10 @@
                                             <label class="inline-flex items-center">
                                                 <input type="radio" name="flow_mode_m3" value="vol" class="form-radio">
                                                 <span class="ml-2">按体积流量</span>
+                                            </label>
+                                            <label class="inline-flex items-center">
+                                                <input type="radio" name="flow_mode_m3" value="mass" class="form-radio">
+                                                <span class="ml-2">按质量流量</span>
                                             </label>
                                         </div>
                                     </div>
@@ -633,6 +636,20 @@
                                         </div>
                                     </div>
                                     
+                                    <div id="mass-inputs-m3" style="display: none;">
+                                        <div class="input-group">
+                                            <label for="flow_mass_m3" class="block text-sm font-medium text-gray-700 mb-1">理论质量流量</label>
+                                            <div class="flex space-x-2">
+                                                <input type="number" id="flow_mass_m3" value="1" step="any" class="w-2/3 p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500" required>
+                                                <select id="flow_mass_unit_m3" class="w-1/3 p-2 border border-gray-300 rounded-md bg-white focus:ring-purple-500 focus:border-purple-500">
+                                                    <option value="t/h" selected>t/h</option>
+                                                    <option value="kg/h">kg/h</option>
+                                                    <option value="kg/s">kg/s</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
                                 </fieldset>
 
                                 <fieldset class="border p-4 rounded-lg mb-4">
@@ -651,7 +668,7 @@
                                         <label for="eta_v_m3" class="block text-sm font-medium text-gray-700 mb-1">
                                             容积效率 (η_v)
                                             <span class="tooltip">(?)
-                                                <span class="tooltiptext">η_v = 实际吸气体积流量 / 理论输气量。</span>
+                                                <span class="tooltiptext">η_v = 实际吸气体积流量 / 理论输气量。(当使用质量流量输入时，此参数用于反算理论体积流量)</span>
                                             </span>
                                         </label>
                                         <input type="number" id="eta_v_m3" value="0.90" step="any" min="0.1" max="1.5" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500" required>
@@ -731,7 +748,7 @@
                                         <label for="superheat_out_m3" class="block text-sm font-medium text-gray-700 mb-1">
                                             目标出口过热度 (K)
                                             <span class="tooltip">(?)
-                                                <span class="tooltiptext">这是喷水计算的目标。计算器将计算所需水量，以使最终排气温度 = 出口饱和温度 + 此过热度。</span>
+                                                <span class="tooltiptext">这是喷水计算的目标。计算器将计算所需水量，以使最终排气温度 = 出口饱和温度 + 此过热度。 (填 0 即按饱和蒸汽计算)</span>
                                             </span>
                                         </label>
                                         <input type="number" id="superheat_out_m3" value="10" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500" required>
@@ -775,8 +792,7 @@
     </div>
 
     <footer class="text-center text-gray-600 text-sm mt-8 pb-4 max-w-4xl mx-auto px-4">
-        <p><strong>版本:</strong> v3.2 (增加 Air 工质)</p>
-        <p><strong>编者:</strong> 荆炎荣 (Jing Yanrong)</p>
+        <p><strong>版本:</strong> v3.5 (MVR 修正 0K 出口过热度)</p> <p><strong>编者:</strong> 荆炎荣 (Jing Yanrong)</p>
         <blockquote class="mt-2 border-l-4 border-gray-300 pl-4 italic">
             编者已尽力确保本计算器结果的准确性，但不对任何因使用本工具而导致的潜在错误或损失承担责任。计算结果仅供参考。
         </blockquote>

@@ -1,6 +1,6 @@
 // =====================================================================
 // ui.js: 界面交互模块
-// 版本: v3.1 (MVR 模式升级)
+// 版本: v3.4 (MVR 模式升级)
 // 职责: 1. 处理主选项卡 (Tabs) 切换
 //        2. 处理干式压缩内部的模式 1/2 切换
 //        3. 处理所有模式中共用的表单 UI 逻辑 (如流量模式等)
@@ -179,6 +179,53 @@ function setupMode3PTToggle(radioName, tempContainerId, pressContainerId, tempIn
     document.querySelector(`input[name='${radioName}'][checked]`).dispatchEvent(new Event('change'));
 }
 
+/**
+ * (v3.4 新增) 辅助函数：设置模式三的流量模式 (RPM/Vol/Mass) UI 切换
+ */
+function setupMode3FlowToggle() {
+    const radios = document.querySelectorAll("input[name='flow_mode_m3']");
+    const rpmInputs = document.getElementById('rpm-inputs-m3');
+    const volInputs = document.getElementById('vol-inputs-m3');
+    const massInputs = document.getElementById('mass-inputs-m3');
+
+    const displacementInput = document.getElementById('displacement_m3');
+    const flowInput = document.getElementById('flow_m3');
+    const massFlowInput = document.getElementById('flow_mass_m3');
+
+    // 检查元素是否存在
+    if (!rpmInputs || !volInputs || !massInputs || !displacementInput || !flowInput || !massFlowInput || radios.length === 0) {
+        console.error("Mode3FlowToggle: 缺少一个或多个 DOM 元素");
+        return;
+    }
+
+    radios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            // 先重置所有
+            rpmInputs.style.display = 'none';
+            volInputs.style.display = 'none';
+            massInputs.style.display = 'none';
+            displacementInput.required = false;
+            flowInput.required = false;
+            massFlowInput.required = false;
+
+            // 再启用选中的
+            if (radio.value === 'rpm') {
+                rpmInputs.style.display = 'block';
+                displacementInput.required = true;
+            } else if (radio.value === 'vol') {
+                volInputs.style.display = 'block';
+                flowInput.required = true;
+            } else if (radio.value === 'mass') {
+                massInputs.style.display = 'block';
+                massFlowInput.required = true;
+            }
+        });
+    });
+    
+    // 触发一次 change 事件以确保初始状态正确
+    document.querySelector("input[name='flow_mode_m3'][checked]").dispatchEvent(new Event('change'));
+}
+
 
 /**
  * 主 UI 初始化函数
@@ -243,10 +290,11 @@ export function initUI() {
     setupMode2EffToggle();
     setupMode2CoolerToggle();
 
-    // (v3.1 新增) 模式三：
-    setupFlowModeToggle("input[name='flow_mode_m3']", 'rpm-inputs-m3', 'vol-inputs-m3', 'displacement_m3', 'flow_m3');
+    // (v3.1/v3.4) 模式三：
+    // setupFlowModeToggle("input[name='flow_mode_m3']", 'rpm-inputs-m3', 'vol-inputs-m3', 'displacement_m3', 'flow_m3'); // (v3.4) 被
+    setupMode3FlowToggle(); // (v3.4) 替换为三模式切换
     setupMode3PTToggle('inlet_mode_m3', 'inlet-temp-m3', 'inlet-press-m3', 'temp_evap_m3', 'press_evap_m3');
     setupMode3PTToggle('outlet_mode_m3', 'outlet-temp-m3', 'outlet-press-m3', 'temp_cond_m3', 'press_cond_m3');
     
-    console.log("UI 模块 (v3.1) 已初始化。");
+    console.log("UI 模块 (v3.4) 已初始化。");
 }
