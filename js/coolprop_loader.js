@@ -1,6 +1,6 @@
 // =====================================================================
 // coolprop_loader.js: CoolProp 物性库加载器
-// 版本: v3.0
+// 版本: v3.2 (增加 Air 工质)
 // 职责: 1. 异步加载 CoolProp WASM 模块
 //        2. 提供一个公共的 updateFluidInfo 函数
 // =====================================================================
@@ -28,7 +28,7 @@ export async function loadCoolProp() {
 
 // 2. 公共的流体信息更新函数
 
-// 定义流体的静态信息 (GWP, ODP, Safety)
+// (v3.2) 定义流体的静态信息 (GWP, ODP, Safety), 新增 "Air"
 const fluidInfoData = {
     'R134a':        { gwp: 1430, odp: 0,    safety: 'A1' },
     'R245fa':       { gwp: 1030, odp: 0,    safety: 'B1' },
@@ -48,7 +48,8 @@ const fluidInfoData = {
     'R152a':        { gwp: 138,  odp: 0,    safety: 'A2' },
     'R454B':        { gwp: 466,  odp: 0,    safety: 'A2L' },
     'R513A':        { gwp: 631,  odp: 0,    safety: 'A1' },
-    'Water':        { gwp: 0,    odp: 0,    safety: 'A1' }  // IAPWS-IF97
+    'Water':        { gwp: 0,    odp: 0,    safety: 'A1' }, // IAPWS-IF97
+    'Air':          { gwp: 0,    odp: 0,    safety: 'A1' }  // v3.2 新增
 };
 
 /**
@@ -72,12 +73,23 @@ export function updateFluidInfo(selectElement, infoElement, CP) {
     }
 
     try {
-        // 特殊处理 R744 (CO2) 和 Water (IAPWS-IF97)
-        if (fluid === 'R744' || fluid === 'Water') {
+        // (v3.2) 特殊处理 R744, Water, Air
+        if (fluid === 'R744' || fluid === 'Water' || fluid === 'Air') {
             const Tcrit_K = CP.PropsSI('Tcrit', '', 0, '', 0, fluid);
             const Pcrit_Pa = CP.PropsSI('Pcrit', '', 0, '', 0, fluid);
-            const name = (fluid === 'R744') ? 'CO2' : 'Water';
-            let warning = (fluid === 'R744') ? "(警告: R744 常用于跨临界循环)" : "(基于 IAPWS-IF97 标准)";
+            
+            let name = fluid;
+            let warning = "";
+            if (fluid === 'R744') {
+                name = 'CO2';
+                warning = "(警告: R744 常用于跨临界循环)";
+            } else if (fluid === 'Water') {
+                name = 'Water';
+                warning = "(基于 IAPWS-IF97 标准)";
+            } else if (fluid === 'Air') {
+                name = 'Air';
+                warning = "(基于理想气体模型)";
+            }
             
             infoElement.innerHTML = `
 <b>${fluid} (${name}) 关键参数:</b>

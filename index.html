@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>压缩机性能计算器 v3.1 (MVR Pro)</title>
+    <title>压缩机性能计算器 v3.2 (MVR Pro + Air)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .input-group {
@@ -151,7 +151,7 @@
 <body class="bg-gray-100 font-sans antialiased">
 
     <div class="container mx-auto p-4 sm:p-8 max-w-4xl">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">压缩机性能计算器 v3.1 (MVR Pro)</h1>
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">压缩机性能计算器 v3.2 (MVR Pro + Air)</h1>
         
         <div class="flex border-b-2 border-gray-300 mb-0">
             <button id="tab-btn-dry" class="tab-button active">
@@ -186,7 +186,7 @@
                     <form id="calc-form-mode-1">
                         <h2 class="text-2xl font-semibold text-blue-700 mb-4 border-b pb-2">1. 输入参数 (模式一)</h2>
                         <blockquote class="bg-blue-50 border-l-4 border-blue-500 text-blue-800 p-4 mb-4" role="alert">
-                            <p><b>适用范围:</b> 涡旋机、无油螺杆、活塞机等干式压缩容积式压缩机。</p>
+                            <p><b>适用范围:</b> 涡旋机、无油螺杆、活塞机、罗茨空压机等干式压缩容积式压缩机。</p>
                         </blockquote>
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6">
@@ -195,7 +195,7 @@
                                     <legend class="font-medium px-2">工质与压缩机</legend>
                                     
                                     <div class="input-group">
-                                        <label for="fluid" class="block text-sm font-medium text-gray-700 mb-1">制冷剂</label>
+                                        <label for="fluid" class="block text-sm font-medium text-gray-700 mb-1">工质 (制冷剂 / 空气 / 水)</label>
                                         <select id="fluid" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white" required>
                                             <option value="R134a">R134a</option>
                                             <option value="R245fa" selected>R245fa</option>
@@ -216,7 +216,7 @@
                                             <option value="R454B">R454B</option>
                                             <option value="R513A">R513A</option>
                                             <option value="Water">Water (IAPWS-IF97)</option>
-                                        </select>
+                                            <option value="Air">Air (空气)</option> </select>
                                     </div>
 
                                     <pre id="fluid-info" class="text-xs text-gray-600 bg-gray-50 p-3 rounded-md border border-gray-200 mb-3 font-mono">
@@ -269,7 +269,7 @@
                                             </label>
                                             <label class="inline-flex items-center">
                                                 <input type="radio" name="capacity_mode" value="heating" class="form-radio" checked>
-                                                <span class="ml-2">制热量 (冷凝器)</span>
+                                                <span class="ml-2">制热量 (冷凝器/排气)</span>
                                             </label>
                                         </div>
                                     </div>
@@ -309,12 +309,12 @@
                                 <fieldset class="border p-4 rounded-lg mb-4">
                                     <legend class="font-medium px-2">热力学工况</legend>
                                     <div class="input-group">
-                                        <label for="temp_evap" class="block text-sm font-medium text-gray-700 mb-1">蒸发温度 (°C)</label>
+                                        <label for="temp_evap" class="block text-sm font-medium text-gray-700 mb-1">蒸发/吸气 温度 (°C)</label>
                                         <input type="number" id="temp_evap" value="50" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" required>
                                     </div>
                                     
                                     <div class="input-group">
-                                        <label for="temp_cond" class="block text-sm font-medium text-gray-700 mb-1">冷凝温度 (°C)</label>
+                                        <label for="temp_cond" class="block text-sm font-medium text-gray-700 mb-1">冷凝/排气 温度 (°C)</label>
                                         <input type="number" id="temp_cond" value="125" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" required>
                                     </div>
                                     
@@ -322,7 +322,7 @@
                                         <label for="superheat" class="block text-sm font-medium text-gray-700 mb-1">
                                             有效过热度 (K)
                                             <span class="tooltip">(?)
-                                                <span class="tooltiptext">指压缩机吸气口温度高出蒸发饱和温度的度数。这是计算吸气点(状态1)的关键参数。</span>
+                                                <span class="tooltiptext">指压缩机吸气口温度高出蒸发饱和温度的度数。这是计算吸气点(状态1)的关键参数。对于空压机，可设为0。</span>
                                             </span>
                                         </label>
                                         <input type="number" id="superheat" value="5" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" required>
@@ -332,7 +332,7 @@
                                         <label for="subcooling" class="block text-sm font-medium text-gray-700 mb-1">
                                             过冷度 (K)
                                             <span class="tooltip">(?)
-                                                <span class="tooltiptext">指冷凝器出口液体温度低于冷凝饱和温度的度数。这是计算节流阀前(状态3)的关键参数。</span>
+                                                <span class="tooltiptext">指冷凝器出口液体温度低于冷凝饱和温度的度数。这是计算节流阀前(状态3)的关键参数。对于空压机，可设为0。</span>
                                             </span>
                                         </label>
                                         <input type="number" id="subcooling" value="5" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" required>
@@ -376,7 +376,7 @@
                     <form id="calc-form-mode-2">
                         <h2 class="text-2xl font-semibold text-green-700 mb-4 border-b pb-2">1. 输入参数 (模式二)</h2>
                         <blockquote class="bg-green-50 border-l-4 border-green-500 text-green-800 p-4 mb-4" role="alert">
-                            <p><b>适用范围:</b> 涡旋机、无油螺杆、活塞机等干式压缩容积式压缩机。</p>
+                            <p><b>适用范围:</b> 涡旋机、无油螺杆、活塞机、罗茨空压机等干式压缩容积式压缩机。</p>
                         </blockquote>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6">
@@ -385,7 +385,7 @@
                                     <legend class="font-medium px-2">工质与压缩机</legend>
                                     
                                     <div class="input-group">
-                                        <label for="fluid_m2" class="block text-sm font-medium text-gray-700 mb-1">制冷剂</label>
+                                        <label for="fluid_m2" class="block text-sm font-medium text-gray-700 mb-1">工质 (制冷剂 / 空气 / 水)</label>
                                         <select id="fluid_m2" class="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500 bg-white" required>
                                             <option value="R134a">R134a</option>
                                             <option value="R245fa" selected>R245fa</option>
@@ -406,7 +406,7 @@
                                             <option value="R454B">R454B</option>
                                             <option value="R513A">R513A</option>
                                             <option value="Water">Water (IAPWS-IF97)</option>
-                                        </select>
+                                            <option value="Air">Air (空气)</option> </select>
                                     </div>
 
                                     <pre id="fluid-info-m2" class="text-xs text-gray-600 bg-gray-50 p-3 rounded-md border border-gray-200 mb-3 font-mono">
@@ -452,12 +452,12 @@
                                 <fieldset class="border p-4 rounded-lg mb-4">
                                     <legend class="font-medium px-2">热力学工况</legend>
                                     <div class="input-group">
-                                        <label for="temp_evap_m2" class="block text-sm font-medium text-gray-700 mb-1">蒸发温度 (°C)</label>
+                                        <label for="temp_evap_m2" class="block text-sm font-medium text-gray-700 mb-1">蒸发/吸气 温度 (°C)</label>
                                         <input type="number" id="temp_evap_m2" value="50" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500" required>
                                     </div>
                                     
                                     <div class="input-group">
-                                        <label for="temp_cond_m2" class="block text-sm font-medium text-gray-700 mb-1">冷凝温度 (°C)</label>
+                                        <label for="temp_cond_m2" class="block text-sm font-medium text-gray-700 mb-1">冷凝/排气 温度 (°C)</label>
                                         <input type="number" id="temp_cond_m2" value="125" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500" required>
                                     </div>
                                     
@@ -775,7 +775,7 @@
     </div>
 
     <footer class="text-center text-gray-600 text-sm mt-8 pb-4 max-w-4xl mx-auto px-4">
-        <p><strong>版本:</strong> v3.1 (MVR 模式升级)</p>
+        <p><strong>版本:</strong> v3.2 (增加 Air 工质)</p>
         <p><strong>编者:</strong> 荆炎荣 (Jing Yanrong)</p>
         <blockquote class="mt-2 border-l-4 border-gray-300 pl-4 italic">
             编者已尽力确保本计算器结果的准确性，但不对任何因使用本工具而导致的潜在错误或损失承担责任。计算结果仅供参考。

@@ -1,6 +1,6 @@
 // =====================================================================
 // mode3_mvr.js: 模式三 (MVR 喷水计算) 模块
-// 版本: v3.1 (MVR Pro)
+// 版本: v3.3 (MVR Pro) - 已由 AI 最终修正 "R718" 逻辑
 // 职责: 1. 初始化模式三 v3.1 的 UI 事件
 //        2. 执行基于灵活 P/T/过热度 输入的 MVR 能量平衡计算
 //        3. 处理打印
@@ -143,7 +143,10 @@ function calculateMode3() {
 
         // --- F. 计算喷水入口状态 (water_in) ---
         const T_water_in_K = T_water_in_C + 273.15;
-        const h_water_in = CP_INSTANCE.PropsSI('H', 'T', T_water_in_K, 'Q', 0, fluid); // 假设饱和液态水
+        // 关键修正 (v3.3): 必须使用 "R718" (水的无歧义制冷剂编号)
+        // "H2O" 和 "Water" 在此库中似乎被错误地指向了其他工质
+        const h_water_in = CP_INSTANCE.PropsSI('H', 'T', T_water_in_K, 'Q', 0, "R718");
+
 
         // --- G. (v3.1) 计算流量和功率 ---
         const V_act_m3_s = V_th_m3_s * eta_v_m3;
@@ -202,7 +205,7 @@ function calculateMode3() {
   (h2_target: ${(h_2_target / 1000).toFixed(2)} kJ/kg)
 喷水 (Spray):
   喷水入口温度: ${T_water_in_C.toFixed(2)} °C
-  (h_water_in: ${(h_water_in / 1000).toFixed(2)} kJ/kg)
+  (h_water_in [R718]: ${(h_water_in / 1000).toFixed(2)} kJ/kg)
 
 --- 干式压缩机性能 (无喷水) ---
 理论排量 (V_th): ${V_th_m3_s.toFixed(5)} m³/s (${(V_th_m3_s * 3600).toFixed(2)} m³/h)
@@ -266,7 +269,7 @@ function printReportMode3() {
         "等熵效率 (η_s)": document.getElementById('eta_s_m3').value,
         "容积效率 (η_v)": document.getElementById('eta_v_m3').value,
         "入口状态定义": document.querySelector('input[name="inlet_mode_m3"]:checked').value === 'temp' ? '按饱和温度' : '按饱和压力',
-        "入口饱和温度 (°C)": document.getElementById('temp_evap_m3').value,
+        "入口饱和温度 (°C)": document.getElementById('temp_evap_mm3').value,
         "入口饱和压力 (bar)": document.getElementById('press_evap_m3').value,
         "入口过热度 (K)": document.getElementById('superheat_in_m3').value,
         "出口状态定义": document.querySelector('input[name="outlet_mode_m3"]:checked').value === 'temp' ? '按饱和温度' : '按饱和压力',
@@ -354,5 +357,5 @@ export function initMode3(CP) {
     // 绑定打印按钮
     printButtonM3.addEventListener('click', printReportMode3);
     
-    console.log("模式三 (MVR v3.1) 已初始化。");
+    console.log("模式三 (MVR v3.3) 已初始化。");
 }
