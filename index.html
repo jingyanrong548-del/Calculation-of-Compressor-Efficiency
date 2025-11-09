@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>压缩机性能计算器 v3.5 (MVR Pro + Air)</title> <script src="https://cdn.tailwindcss.com"></script>
+    <title>压缩机性能计算器 v4.1 (MVR 拆分+模式四升级)</title> <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* ... 样式表 (无变化) ... */
         .input-group {
@@ -151,17 +151,19 @@
 <body class="bg-gray-100 font-sans antialiased">
 
     <div class="container mx-auto p-4 sm:p-8 max-w-4xl">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">压缩机性能计算器 v3.5 (MVR Pro + Air)</h1>
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">压缩机性能计算器 v4.1 (MVR 拆分+模式四升级)</h1>
         
         <div class="flex border-b-2 border-gray-300 mb-0">
             <button id="tab-btn-dry" class="tab-button active">
                 ⚙️ 干式压缩 (模式 1 & 2)
             </button>
             <button id="tab-btn-mvr" class="tab-button">
-                💧 MVR 喷水 (模式 3)
+                💧 MVR 容积式 (模式 3)
+            </button>
+            <button id="tab-btn-turbo" class="tab-button">
+                💨 MVR 透平式 (模式 4)
             </button>
         </div>
-
 
         <div id="tab-content-dry" class="tab-content active">
             
@@ -569,10 +571,12 @@
             <div id="mode-3-container">
                 <div class="bg-white p-6 sm:p-8">
 
-                    <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">模式三: MVR 喷水计算 (v3.5)</h2> <form id="calc-form-mode-3">
+                    <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">模式三: MVR 容积式计算 (v4.0)</h2>
+                    
+                    <form id="calc-form-mode-3">
                         <h2 class="text-2xl font-semibold text-purple-700 mb-4 border-b pb-2">1. 输入参数 (模式三)</h2>
                         <blockquote class="bg-purple-50 border-l-4 border-purple-500 text-purple-800 p-4 mb-4" role="alert">
-                            <p><b>适用范围:</b> 无油螺杆、无油罗茨等容积式压缩机在 MVR 喷水场景下的计算。</p>
+                            <p><b>适用范围:</b> 无油螺杆、无油罗茨等**容积式**压缩机在 MVR 喷水场景下的计算。</p>
                             <p class="mt-1"><b>计算目标:</b> 根据能量平衡，计算为达到“目标出口过热度”所需的喷水量。</p>
                         </blockquote>
 
@@ -595,7 +599,7 @@
                                     
                                     <div class="input-group">
                                         <label class="block text-sm font-medium text-gray-700 mb-1">理论输气量模式</label>
-                                        <div class="flex flex-col space-y-2">
+                                        <div class="flex space-x-4">
                                             <label class="inline-flex items-center">
                                                 <input type="radio" name="flow_mode_m3" value="rpm" class="form-radio" checked>
                                                 <span class="ml-2">按转速与排量</span>
@@ -603,10 +607,6 @@
                                             <label class="inline-flex items-center">
                                                 <input type="radio" name="flow_mode_m3" value="vol" class="form-radio">
                                                 <span class="ml-2">按体积流量</span>
-                                            </label>
-                                            <label class="inline-flex items-center">
-                                                <input type="radio" name="flow_mode_m3" value="mass" class="form-radio">
-                                                <span class="ml-2">按质量流量</span>
                                             </label>
                                         </div>
                                     </div>
@@ -635,26 +635,10 @@
                                             </div>
                                         </div>
                                     </div>
-                                    
-                                    <div id="mass-inputs-m3" style="display: none;">
-                                        <div class="input-group">
-                                            <label for="flow_mass_m3" class="block text-sm font-medium text-gray-700 mb-1">理论质量流量</label>
-                                            <div class="flex space-x-2">
-                                                <input type="number" id="flow_mass_m3" value="1" step="any" class="w-2/3 p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500" required>
-                                                <select id="flow_mass_unit_m3" class="w-1/3 p-2 border border-gray-300 rounded-md bg-white focus:ring-purple-500 focus:border-purple-500">
-                                                    <option value="t/h" selected>t/h</option>
-                                                    <option value="kg/h">kg/h</option>
-                                                    <option value="kg/s">kg/s</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
                                 </fieldset>
 
                                 <fieldset class="border p-4 rounded-lg mb-4">
                                     <legend class="font-medium px-2">效率参数</legend>
-
                                     <div class="input-group">
                                         <label for="eta_s_m3" class="block text-sm font-medium text-gray-700 mb-1">
                                             等熵效率 (η_s)
@@ -668,7 +652,7 @@
                                         <label for="eta_v_m3" class="block text-sm font-medium text-gray-700 mb-1">
                                             容积效率 (η_v)
                                             <span class="tooltip">(?)
-                                                <span class="tooltiptext">η_v = 实际吸气体积流量 / 理论输气量。(当使用质量流量输入时，此参数用于反算理论体积流量)</span>
+                                                <span class="tooltiptext">η_v = 实际吸气体积流量 / 理论输气量。</span>
                                             </span>
                                         </label>
                                         <input type="number" id="eta_v_m3" value="0.90" step="any" min="0.1" max="1.5" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500" required>
@@ -679,7 +663,6 @@
                             <div>
                                 <fieldset class="border p-4 rounded-lg mb-4">
                                     <legend class="font-medium px-2">工艺入口</legend>
-                                    
                                     <div class="input-group">
                                         <label class="block text-sm font-medium text-gray-700 mb-1">入口状态定义</label>
                                         <div class="flex space-x-4">
@@ -693,7 +676,6 @@
                                             </label>
                                         </div>
                                     </div>
-
                                     <div id="inlet-temp-m3">
                                         <div class="input-group">
                                             <label for="temp_evap_m3" class="block text-sm font-medium text-gray-700 mb-1">入口饱和温度 (°C)</label>
@@ -706,17 +688,14 @@
                                             <input type="number" id="press_evap_m3" value="1.013" step="any" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500" required>
                                         </div>
                                     </div>
-
                                     <div class="input-group">
                                         <label for="superheat_in_m3" class="block text-sm font-medium text-gray-700 mb-1">入口过热度 (K)</label>
                                         <input type="number" id="superheat_in_m3" value="0" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500" required>
                                     </div>
-                                    
                                 </fieldset>
 
                                 <fieldset class="border p-4 rounded-lg mb-4">
                                     <legend class="font-medium px-2">工艺出口与喷水</legend>
-                                    
                                     <div class="input-group">
                                         <label class="block text-sm font-medium text-gray-700 mb-1">出口状态定义</label>
                                         <div class="flex space-x-4">
@@ -730,7 +709,6 @@
                                             </label>
                                         </div>
                                     </div>
-
                                     <div id="outlet-temp-m3">
                                         <div class="input-group">
                                             <label for="temp_cond_m3" class="block text-sm font-medium text-gray-700 mb-1">出口饱和温度 (°C)</label>
@@ -743,7 +721,6 @@
                                             <input type="number" id="press_cond_m3" value="1.985" step="any" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500" required>
                                         </div>
                                     </div>
-
                                     <div class="input-group">
                                         <label for="superheat_out_m3" class="block text-sm font-medium text-gray-700 mb-1">
                                             目标出口过热度 (K)
@@ -753,25 +730,20 @@
                                         </label>
                                         <input type="number" id="superheat_out_m3" value="10" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500" required>
                                     </div>
-
                                     <hr class="my-4">
-
                                     <div class="input-group">
                                         <label for="temp_water_in_m3" class="block text-sm font-medium text-gray-700 mb-1">喷水温度 (°C)</label>
                                         <input type="number" id="temp_water_in_m3" value="25" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500" required>
                                     </div>
-
                                 </fieldset>
                             </div>
                         </div>
-
                         <div class="mt-4 text-center">
                             <button type="submit" id="calc-button-mode-3" class="w-full md:w-1/2 bg-purple-600 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 transition duration-300 ease-in-out" disabled>
                                 正在加载物性库...
                             </button>
                         </div>
                     </form>
-
                     <div class="mt-8">
                         <div>
                             <h2 class="text-2xl font-semibold text-purple-700 mb-4 border-b pb-2">2. 计算结果 (模式三)</h2>
@@ -788,11 +760,221 @@
                 </div>
             </div>
         </div>
+        
+        <div id="tab-content-turbo" class="tab-content">
+            <div id="mode-4-container">
+                <div class="bg-white p-6 sm:p-8">
+
+                    <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">模式四: MVR 透平式计算 (v4.1)</h2>
+                    
+                    <form id="calc-form-mode-4">
+                        <h2 class="text-2xl font-semibold text-teal-700 mb-4 border-b pb-2">1. 输入参数 (模式四)</h2>
+                        <blockquote class="bg-teal-50 border-l-4 border-teal-500 text-teal-800 p-4 mb-4" role="alert">
+                            <p><b>适用范围:</b> 离心式、轴流式等**透平压缩机**在 MVR 喷水场景下的计算。</p>
+                            <p class="mt-1"><b>计算目标:</b> 根据输入的**实际流量**，计算轴功率和所需的喷水量。</p>
+                        </blockquote>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+                            <div>
+                                <fieldset class="border p-4 rounded-lg mb-4">
+                                    <legend class="font-medium px-2">工质与压缩机</legend>
+                                    
+                                    <div class="input-group">
+                                        <label for="fluid_m4" class="block text-sm font-medium text-gray-700 mb-1">工质</label>
+                                        <select id="fluid_m4" class="w-full p-2 border border-gray-300 rounded-md bg-gray-200" required disabled>
+                                            <option value="Water" selected>Water (IAPWS-IF97)</option>
+                                        </select>
+                                        <small class="text-xs text-gray-600">MVR 模式默认工质为水。</small>
+                                    </div>
+
+                                    <pre id="fluid-info-m4" class="text-xs text-gray-600 bg-gray-50 p-3 rounded-md border border-gray-200 mb-3 font-mono">
+--- 正在加载物性库 ---
+                                    </pre>
+                                </fieldset>
+
+                                <fieldset class="border p-4 rounded-lg mb-4">
+                                    <legend class="font-medium px-2">流量与效率</legend>
+
+                                    <div class="input-group">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">蒸汽流量模式</label>
+                                        <div class="flex space-x-4">
+                                            <label class="inline-flex items-center">
+                                                <input type="radio" name="flow_mode_m4" value="mass" class="form-radio" checked>
+                                                <span class="ml-2">按质量流量</span>
+                                            </label>
+                                            <label class="inline-flex items-center">
+                                                <input type="radio" name="flow_mode_m4" value="vol" class="form-radio">
+                                                <span class="ml-2">按体积流量</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div id="mass-inputs-m4">
+                                        <div class="input-group">
+                                            <label for="flow_mass_m4" class="block text-sm font-medium text-gray-700 mb-1">干蒸汽质量流量</label>
+                                            <div class="flex space-x-2">
+                                                <input type="number" id="flow_mass_m4" value="1" step="any" class="w-2/3 p-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500" required>
+                                                <select id="flow_mass_unit_m4" class="w-1/3 p-2 border border-gray-300 rounded-md bg-white focus:ring-teal-500 focus:border-teal-500">
+                                                    <option value="t/h" selected>t/h</option>
+                                                    <option value="kg/h">kg/h</option>
+                                                    <option value="kg/s">kg/s</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div id="vol-inputs-m4" style="display: none;">
+                                        <div class="input-group">
+                                            <label for="flow_vol_m4" class="block text-sm font-medium text-gray-700 mb-1">
+                                                实际吸气体积流量
+                                                <span class="tooltip">(?)
+                                                    <span class="tooltiptext">
+                                                        指压缩机入口(状态1)的实际体积流量 (V_act)。
+                                                    </span>
+                                                </span>
+                                            </label>
+                                            <div class="flex space-x-2">
+                                                <input type="number" id="flow_vol_m4" value="1000" step="any" class="w-2/3 p-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500" required>
+                                                <select id="flow_vol_unit_m4" class="w-1/3 p-2 border border-gray-300 rounded-md bg-white focus:ring-teal-500 focus:border-teal-500">
+                                                    <option value="m3/h" selected>m³/h</option>
+                                                    <option value="m3/s">m³/s</option>
+                                                    <option value="L/min">L/min</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <hr class="my-3">
+
+                                    <div class="input-group">
+                                        <label for="eta_s_m4" class="block text-sm font-medium text-gray-700 mb-1">
+                                            等熵效率 (η_s)
+                                            <span class="tooltip">(?)
+                                                <span class="tooltiptext">透平压缩机的核心性能参数。η_s = 理论等熵功率 / 压缩机轴功率。</span>
+                                            </span>
+                                        </label>
+                                        <input type="number" id="eta_s_m4" value="0.75" step="any" min="0.1" max="1.5" class="w-full p-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500" required>
+                                    </div>
+                                </fieldset>
+                            </div>
+
+                            <div>
+                                <fieldset class="border p-4 rounded-lg mb-4">
+                                    <legend class="font-medium px-2">工艺入口</legend>
+                                    
+                                    <div class="input-group">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">入口状态定义</label>
+                                        <div class="flex space-x-4">
+                                            <label class="inline-flex items-center">
+                                                <input type="radio" name="inlet_mode_m4" value="temp" class="form-radio" checked>
+                                                <span class="ml-2">按饱和温度</span>
+                                            </label>
+                                            <label class="inline-flex items-center">
+                                                <input type="radio" name="inlet_mode_m4" value="press" class="form-radio">
+                                                <span class="ml-2">按饱和压力</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div id="inlet-temp-m4">
+                                        <div class="input-group">
+                                            <label for="temp_evap_m4" class="block text-sm font-medium text-gray-700 mb-1">入口饱和温度 (°C)</label>
+                                            <input type="number" id="temp_evap_m4" value="100" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500" required>
+                                        </div>
+                                    </div>
+                                    <div id="inlet-press-m4" style="display: none;">
+                                        <div class="input-group">
+                                            <label for="press_evap_m4" class="block text-sm font-medium text-gray-700 mb-1">入口饱和压力 (bar)</label>
+                                            <input type="number" id="press_evap_m4" value="1.013" step="any" class="w-full p-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500" required>
+                                        </div>
+                                    </div>
+
+                                    <div class="input-group">
+                                        <label for="superheat_in_m4" class="block text-sm font-medium text-gray-700 mb-1">入口过热度 (K)</label>
+                                        <input type="number" id="superheat_in_m4" value="0" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500" required>
+                                    </div>
+                                    
+                                </fieldset>
+
+                                <fieldset class="border p-4 rounded-lg mb-4">
+                                    <legend class="font-medium px-2">工艺出口与喷水</legend>
+                                    
+                                    <div class="input-group">
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">出口状态定义</label>
+                                        <div class="flex space-x-4">
+                                            <label class="inline-flex items-center">
+                                                <input type="radio" name="outlet_mode_m4" value="temp" class="form-radio" checked>
+                                                <span class="ml-2">按饱和温度</span>
+                                            </label>
+                                            <label class="inline-flex items-center">
+                                                <input type="radio" name="outlet_mode_m4" value="press" class="form-radio">
+                                                <span class="ml-2">按饱和压力</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div id="outlet-temp-m4">
+                                        <div class="input-group">
+                                            <label for="temp_cond_m4" class="block text-sm font-medium text-gray-700 mb-1">出口饱和温度 (°C)</label>
+                                            <input type="number" id="temp_cond_m4" value="120" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500" required>
+                                        </div>
+                                    </div>
+                                    <div id="outlet-press-m4" style="display: none;">
+                                        <div class="input-group">
+                                            <label for="press_cond_m4" class="block text-sm font-medium text-gray-700 mb-1">出口饱和压力 (bar)</label>
+                                            <input type="number" id="press_cond_m4" value="1.985" step="any" class="w-full p-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500" required>
+                                        </div>
+                                    </div>
+
+                                    <div class="input-group">
+                                        <label for="superheat_out_m4" class="block text-sm font-medium text-gray-700 mb-1">
+                                            目标出口过热度 (K)
+                                            <span class="tooltip">(?)
+                                                <span class="tooltiptext">这是喷水计算的目标。计算器将计算所需水量，以使最终排气温度 = 出口饱和温度 + 此过热度。 (填 0 即按饱和蒸汽计算)</span>
+                                            </span>
+                                        </label>
+                                        <input type="number" id="superheat_out_m4" value="10" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500" required>
+                                    </div>
+
+                                    <hr class="my-4">
+
+                                    <div class="input-group">
+                                        <label for="temp_water_in_m4" class="block text-sm font-medium text-gray-700 mb-1">喷水温度 (°C)</label>
+                                        <input type="number" id="temp_water_in_m4" value="25" step="0.1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500" required>
+                                    </div>
+
+                                </fieldset>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 text-center">
+                            <button type="submit" id="calc-button-mode-4" class="w-full md:w-1/2 bg-teal-600 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50 transition duration-300 ease-in-out" disabled>
+                                正在加载物性库...
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="mt-8">
+                        <div>
+                            <h2 class="text-2xl font-semibold text-teal-700 mb-4 border-b pb-2">2. 计算结果 (模式四)</h2>
+                            <pre id="results-mode-4" class="bg-gray-50 text-gray-900 p-6 rounded-lg shadow-inner overflow-x-auto min-h-[400px] font-mono text-sm">
+--- 请输入参数并点击计算 ---
+                            </pre>
+                            <div class="mt-4 text-center">
+                                <button type="button" id="print-button-mode-4" class="w-full md:w-1/2 bg-gray-500 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-400 transition duration-300" disabled>
+                                    🖨️ 打印报告 (A4)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
     </div>
 
     <footer class="text-center text-gray-600 text-sm mt-8 pb-4 max-w-4xl mx-auto px-4">
-        <p><strong>版本:</strong> v3.5 (MVR 修正 0K 出口过热度)</p> <p><strong>编者:</strong> 荆炎荣 (Jing Yanrong)</p>
+        <p><strong>版本:</strong> v4.1 (MVR 模式四增加体积流量)</p> <p><strong>编者:</strong> 荆炎荣 (Jing Yanrong)</p>
         <blockquote class="mt-2 border-l-4 border-gray-300 pl-4 italic">
             编者已尽力确保本计算器结果的准确性，但不对任何因使用本工具而导致的潜在错误或损失承担责任。计算结果仅供参考。
         </blockquote>

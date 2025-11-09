@@ -1,9 +1,9 @@
 // =====================================================================
 // ui.js: 界面交互模块
-// 版本: v3.4 (MVR 模式升级)
-// 职责: 1. 处理主选项卡 (Tabs) 切换
+// 版本: v4.1 (MVR 拆分)
+// 职责: 1. 处理主选项卡 (Tabs) 切换 (v4.0: 3个)
 //        2. 处理干式压缩内部的模式 1/2 切换
-//        3. 处理所有模式中共用的表单 UI 逻辑 (如流量模式等)
+//        3. 处理所有模式中共用的表单 UI 逻辑
 // =====================================================================
 
 /**
@@ -141,7 +141,7 @@ function setupMode2CoolerToggle() {
 }
 
 /**
- * (v3.1 新增) 辅助函数：设置模式三的 P/T 切换
+ * (v3.1) 辅助函数：设置模式三/四的 P/T 切换
  * @param {string} radioName - 'name' 属性, e.g., "inlet_mode_m3"
  * @param {string} tempContainerId - 温度输入组的 ID
  * @param {string} pressContainerId - 压力输入组的 ID
@@ -180,50 +180,38 @@ function setupMode3PTToggle(radioName, tempContainerId, pressContainerId, tempIn
 }
 
 /**
- * (v3.4 新增) 辅助函数：设置模式三的流量模式 (RPM/Vol/Mass) UI 切换
+ * (v4.1 新增) 辅助函数：设置模式四的流量模式 (Mass vs Vol) UI 切换
  */
-function setupMode3FlowToggle() {
-    const radios = document.querySelectorAll("input[name='flow_mode_m3']");
-    const rpmInputs = document.getElementById('rpm-inputs-m3');
-    const volInputs = document.getElementById('vol-inputs-m3');
-    const massInputs = document.getElementById('mass-inputs-m3');
+function setupMode4FlowToggle() {
+    const radios = document.querySelectorAll("input[name='flow_mode_m4']");
+    const massInputs = document.getElementById('mass-inputs-m4');
+    const volInputs = document.getElementById('vol-inputs-m4');
+    const massFlowInput = document.getElementById('flow_mass_m4');
+    const volFlowInput = document.getElementById('flow_vol_m4');
 
-    const displacementInput = document.getElementById('displacement_m3');
-    const flowInput = document.getElementById('flow_m3');
-    const massFlowInput = document.getElementById('flow_mass_m3');
-
-    // 检查元素是否存在
-    if (!rpmInputs || !volInputs || !massInputs || !displacementInput || !flowInput || !massFlowInput || radios.length === 0) {
-        console.error("Mode3FlowToggle: 缺少一个或多个 DOM 元素");
+    if (!massInputs || !volInputs || !massFlowInput || !volFlowInput || radios.length === 0) {
+        console.error("Mode4FlowToggle: 缺少一个或多个 DOM 元素");
         return;
     }
 
     radios.forEach(radio => {
         radio.addEventListener('change', () => {
-            // 先重置所有
-            rpmInputs.style.display = 'none';
-            volInputs.style.display = 'none';
-            massInputs.style.display = 'none';
-            displacementInput.required = false;
-            flowInput.required = false;
-            massFlowInput.required = false;
-
-            // 再启用选中的
-            if (radio.value === 'rpm') {
-                rpmInputs.style.display = 'block';
-                displacementInput.required = true;
-            } else if (radio.value === 'vol') {
-                volInputs.style.display = 'block';
-                flowInput.required = true;
-            } else if (radio.value === 'mass') {
+            if (radio.value === 'mass') {
                 massInputs.style.display = 'block';
+                volInputs.style.display = 'none';
                 massFlowInput.required = true;
+                volFlowInput.required = false;
+            } else { // 'vol'
+                massInputs.style.display = 'none';
+                volInputs.style.display = 'block';
+                massFlowInput.required = false;
+                volFlowInput.required = true;
             }
         });
     });
     
     // 触发一次 change 事件以确保初始状态正确
-    document.querySelector("input[name='flow_mode_m3'][checked]").dispatchEvent(new Event('change'));
+    document.querySelector("input[name='flow_mode_m4'][checked]").dispatchEvent(new Event('change'));
 }
 
 
@@ -233,25 +221,38 @@ function setupMode3FlowToggle() {
  */
 export function initUI() {
     
-    // --- 1. 主选项卡 (Tab) 切换逻辑 ---
+    // --- 1. (v4.0) 主选项卡 (Tab) 切换逻辑 (3个) ---
     const tabBtnDry = document.getElementById('tab-btn-dry');
     const tabBtnMvr = document.getElementById('tab-btn-mvr');
+    const tabBtnTurbo = document.getElementById('tab-btn-turbo');
     const tabContentDry = document.getElementById('tab-content-dry');
     const tabContentMvr = document.getElementById('tab-content-mvr');
+    const tabContentTurbo = document.getElementById('tab-content-turbo');
 
-    tabBtnDry.addEventListener('click', () => {
-        tabBtnDry.classList.add('active');
-        tabBtnMvr.classList.remove('active');
-        tabContentDry.classList.add('active');
-        tabContentMvr.classList.remove('active');
-    });
+    const allTabs = [tabBtnDry, tabBtnMvr, tabBtnTurbo];
+    const allContents = [tabContentDry, tabContentMvr, tabContentTurbo];
 
-    tabBtnMvr.addEventListener('click', () => {
-        tabBtnDry.classList.remove('active');
-        tabBtnMvr.classList.add('active');
-        tabContentDry.classList.remove('active');
-        tabContentMvr.classList.add('active');
-    });
+    function switchTab(activeIndex) {
+        allTabs.forEach((tab, index) => {
+            if (index === activeIndex) {
+                tab.classList.add('active');
+            } else {
+                tab.classList.remove('active');
+            }
+        });
+        allContents.forEach((content, index) => {
+            if (index === activeIndex) {
+                content.classList.add('active');
+            } else {
+                content.classList.remove('active');
+            }
+        });
+    }
+
+    tabBtnDry.addEventListener('click', () => switchTab(0));
+    tabBtnMvr.addEventListener('click', () => switchTab(1));
+    tabBtnTurbo.addEventListener('click', () => switchTab(2));
+
 
     // --- 2. 模式 1 / 模式 2 内部切换逻辑 ---
     const mode1Radio = document.getElementById('mode-1-radio');
@@ -290,11 +291,15 @@ export function initUI() {
     setupMode2EffToggle();
     setupMode2CoolerToggle();
 
-    // (v3.1/v3.4) 模式三：
-    // setupFlowModeToggle("input[name='flow_mode_m3']", 'rpm-inputs-m3', 'vol-inputs-m3', 'displacement_m3', 'flow_m3'); // (v3.4) 被
-    setupMode3FlowToggle(); // (v3.4) 替换为三模式切换
+    // (v4.0) 模式三 (容积式):
+    setupFlowModeToggle("input[name='flow_mode_m3']", 'rpm-inputs-m3', 'vol-inputs-m3', 'displacement_m3', 'flow_m3');
     setupMode3PTToggle('inlet_mode_m3', 'inlet-temp-m3', 'inlet-press-m3', 'temp_evap_m3', 'press_evap_m3');
     setupMode3PTToggle('outlet_mode_m3', 'outlet-temp-m3', 'outlet-press-m3', 'temp_cond_m3', 'press_cond_m3');
     
-    console.log("UI 模块 (v3.4) 已初始化。");
+    // (v4.1) 模式四 (透平式):
+    setupMode4FlowToggle(); // (v4.1) 新增
+    setupMode3PTToggle('inlet_mode_m4', 'inlet-temp-m4', 'inlet-press-m4', 'temp_evap_m4', 'press_evap_m4');
+    setupMode3PTToggle('outlet_mode_m4', 'outlet-temp-m4', 'outlet-press-m4', 'temp_cond_m4', 'press_cond_m4');
+    
+    console.log("UI 模块 (v4.1) 已初始化。");
 }

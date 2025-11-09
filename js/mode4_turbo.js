@@ -1,0 +1,389 @@
+// =====================================================================
+// mode4_turbo.js: 模式四 (MVR 透平式计算) 模块
+// 版本: v4.1 (Turbo) - 增加体积流量输入
+// 职责: 1. 初始化模式四 (透平式) 的 UI 事件
+//        2. 执行基于 'mass'/'vol' flow 输入的 MVR 能量平衡计算
+//        3. 处理打印
+// =====================================================================
+
+import { updateFluidInfo } from './coolprop_loader.js';
+
+// --- 模块内部变量 ---
+let CP_INSTANCE = null;
+let lastMode4ResultText = null;
+
+// --- DOM 元素引用 ---
+let calcButtonM4, resultsDivM4, calcFormM4, printButtonM4;
+let fluidSelectM4, fluidInfoDivM4;
+let allInputsM4;
+
+// --- 按钮状态常量 ---
+const btnText = "计算喷水量 (模式四)";
+const btnTextStale = "重新计算 (模式四)";
+const classesFresh = ['bg-teal-600', 'hover:bg-teal-700', 'text-white'];
+const classesStale = ['bg-yellow-500', 'hover:bg-yellow-600', 'text-black'];
+
+/**
+ * 设置按钮为“脏”状态 (Stale)
+ */
+function setButtonStale4() {
+    calcButtonM4.textContent = btnTextStale;
+    calcButtonM4.classList.remove(...classesFresh);
+    calcButtonM4.classList.add(...classesStale);
+    printButtonM4.disabled = true;
+    lastMode4ResultText = null;
+}
+
+/**
+ * 设置按钮为“新”状态 (Fresh)
+ */
+function setButtonFresh4() {
+    calcButtonM4.textContent = btnText;
+    calcButtonM4.classList.remove(...classesStale);
+    calcButtonM4.classList.add(...classesFresh);
+}
+
+
+/**
+ * (v4.1) 模式四：主计算函数 (MVR 透平式)
+ */
+function calculateMode4() {
+    try {
+        // --- A. 获取所有输入值 ---
+        const fluid = fluidSelectM4.value; // 'Water'
+        
+        // 压缩机 (v4.1)
+        const flow_mode_m4 = document.querySelector('input[name="flow_mode_m4"]:checked').value; // 'mass', 'vol'
+        const eta_s_m4 = parseFloat(document.getElementById('eta_s_m4').value);
+        
+        // 工艺入口
+        const inlet_mode_m4 = document.querySelector('input[name="inlet_mode_m4"]:checked').value;
+        const Te_C_in = parseFloat(document.getElementById('temp_evap_m4').value);
+        const Pe_bar_in = parseFloat(document.getElementById('press_evap_m4').value);
+        const superheat_in_K = parseFloat(document.getElementById('superheat_in_m4').value);
+        
+        // 工艺出口
+        const outlet_mode_m4 = document.querySelector('input[name="outlet_mode_m4"]:checked').value;
+        const Tc_C_in = parseFloat(document.getElementById('temp_cond_m4').value);
+        const Pc_bar_in = parseFloat(document.getElementById('press_cond_m4').value);
+        const superheat_out_K = parseFloat(document.getElementById('superheat_out_m4').value);
+        
+        // 喷水
+        const T_water_in_C = parseFloat(document.getElementById('temp_water_in_m4').value);
+        
+        // 校验 (基础)
+        if (isNaN(eta_s_m4) || isNaN(superheat_in_K) || isNaN(superheat_out_K) || isNaN(T_water_in_C)) {
+            throw new Error("效率、过热度或喷水温度包含无效数字。");
+        }
+        if (eta_s_m4 <= 0) {
+             throw new Error("效率必须大于零。");
+        }
+
+        // --- (v4.0) B. 标准化工艺压力 (Pe_Pa, Pc_Pa) 和饱和温度 (T_sat_in_K, T_sat_out_K) ---
+        let Pe_Pa, T_sat_in_K;
+        if (inlet_mode_m4 === 'temp') {
+            if (isNaN(Te_C_in)) throw new Error("入口饱和温度无效。");
+            T_sat_in_K = Te_C_in + 273.15;
+            Pe_Pa = CP_INSTANCE.PropsSI('P', 'T', T_sat_in_K, 'Q', 1, fluid);
+        } else {
+            if (isNaN(Pe_bar_in) || Pe_bar_in <= 0) throw new Error("入口饱和压力无效。");
+            Pe_Pa = Pe_bar_in * 1e5;
+            T_sat_in_K = CP_INSTANCE.PropsSI('T', 'P', Pe_Pa, 'Q', 1, fluid);
+        }
+        
+        let Pc_Pa, T_sat_out_K;
+        if (outlet_mode_m4 === 'temp') {
+            if (isNaN(Tc_C_in)) throw new Error("出口饱和温度无效。");
+            T_sat_out_K = Tc_C_in + 273.15;
+            Pc_Pa = CP_INSTANCE.PropsSI('P', 'T', T_sat_out_K, 'Q', 1, fluid);
+        } else {
+            if (isNaN(Pc_bar_in) || Pc_bar_in <= 0) throw new Error("出口饱和压力无效。");
+            Pc_Pa = Pc_bar_in * 1e5;
+            T_sat_out_K = CP_INSTANCE.PropsSI('T', 'P', Pc_Pa, 'Q', 1, fluid);
+        }
+
+        if (Pc_Pa <= Pe_Pa) {
+            throw new Error("出口压力必须高于入口压力。");
+        }
+        
+        // --- (v4.0) C. 计算实际入口状态 (State 1) ---
+        let T_1_actual_K, h_1_actual, s_1_actual, rho_1_actual;
+        if (superheat_in_K > 0) {
+            T_1_actual_K = T_sat_in_K + superheat_in_K;
+            h_1_actual = CP_INSTANCE.PropsSI('H', 'T', T_1_actual_K, 'P', Pe_Pa, fluid);
+            s_1_actual = CP_INSTANCE.PropsSI('S', 'T', T_1_actual_K, 'P', Pe_Pa, fluid);
+            rho_1_actual = CP_INSTANCE.PropsSI('D', 'T', T_1_actual_K, 'P', Pe_Pa, fluid);
+        } else {
+            T_1_actual_K = T_sat_in_K;
+            h_1_actual = CP_INSTANCE.PropsSI('H', 'P', Pe_Pa, 'Q', 1, fluid);
+            s_1_actual = CP_INSTANCE.PropsSI('S', 'P', Pe_Pa, 'Q', 1, fluid);
+            rho_1_actual = CP_INSTANCE.PropsSI('D', 'P', Pe_Pa, 'Q', 1, fluid);
+        }
+
+        // --- (v4.0) D. 计算实际目标出口状态 (State 2 Target) ---
+        let T_2_target_K, h_2_target;
+        if (superheat_out_K > 0) {
+            T_2_target_K = T_sat_out_K + superheat_out_K;
+            h_2_target = CP_INSTANCE.PropsSI('H', 'T', T_2_target_K, 'P', Pc_Pa, fluid);
+        } else {
+            T_2_target_K = T_sat_out_K; 
+            h_2_target = CP_INSTANCE.PropsSI('H', 'P', Pc_Pa, 'Q', 1, fluid);
+        }
+
+
+        // --- (v4.0) E. 计算喷水入口状态 (water_in) ---
+        const T_water_in_K = T_water_in_C + 273.15;
+        const h_water_in = CP_INSTANCE.PropsSI('H', 'T', T_water_in_K, 'Q', 0, "R718");
+
+
+        // --- (v4.1) F. 计算流量和功率 (透平式) ---
+        let m_dot_gas, V_act_m3_s;
+        let flow_input_source = "";
+
+        if (flow_mode_m4 === 'mass') {
+            // (v4.1) 模式: 按质量
+            const flow_val = parseFloat(document.getElementById('flow_mass_m4').value);
+            const flow_unit = document.getElementById('flow_mass_unit_m4').value;
+            if (isNaN(flow_val) || flow_val <= 0) {
+                throw new Error("干蒸汽质量流量必须是大于零的数字。");
+            }
+            
+            if (flow_unit === 't/h') {
+                m_dot_gas = (flow_val * 1000) / 3600;
+            } else if (flow_unit === 'kg/h') {
+                m_dot_gas = flow_val / 3600;
+            } else { // kg/s
+                m_dot_gas = flow_val;
+            }
+            
+            // 反算实际体积流量 (用于输出显示)
+            V_act_m3_s = m_dot_gas / rho_1_actual;
+            flow_input_source = "(输入值)";
+
+        } else { // 'vol'
+            // (v4.1) 模式: 按体积
+            const flow_val = parseFloat(document.getElementById('flow_vol_m4').value);
+            const flow_unit = document.getElementById('flow_vol_unit_m4').value;
+             if (isNaN(flow_val) || flow_val <= 0) {
+                throw new Error("实际吸气体积流量必须是大于零的数字。");
+            }
+
+            if (flow_unit === 'm3/h') {
+                V_act_m3_s = flow_val / 3600;
+            } else if (flow_unit === 'L/min') {
+                V_act_m3_s = flow_val / 1000 / 60;
+            } else { // m3/s
+                V_act_m3_s = flow_val;
+            }
+
+            // 反算质量流量 (用于计算)
+            m_dot_gas = V_act_m3_s * rho_1_actual;
+            flow_input_source = "(计算值)";
+        }
+
+        
+        // --- F.1: 计算功率 ---
+        const h_2s = CP_INSTANCE.PropsSI('H', 'P', Pc_Pa, 'S', s_1_actual, fluid);
+        const T_2s_K = CP_INSTANCE.PropsSI('T', 'P', Pc_Pa, 'S', s_1_actual, fluid);
+        
+        const Ws_W = m_dot_gas * (h_2s - h_1_actual);
+        const W_shaft_W = Ws_W / eta_s_m4;
+
+        // --- G. (v4.0) 求解喷水量 (m_dot_water) ---
+        // ... (逻辑同模式三) ...
+        const energy_from_gas_h_change = m_dot_gas * (h_2_target - h_1_actual);
+        const energy_excess_W = W_shaft_W - energy_from_gas_h_change;
+        const energy_per_kg_water = h_2_target - h_water_in;
+
+        if (energy_per_kg_water <= 0) {
+            throw new Error(`计算错误：每kg喷水吸收的能量 (h2_target - h_water_in) 小于等于零。 (${(energy_per_kg_water/1000).toFixed(2)} kJ/kg)`);
+        }
+        
+        if (energy_excess_W < 0) {
+            const h_2a_dry = (W_shaft_W / m_dot_gas) + h_1_actual;
+            const T_2a_dry_K = CP_INSTANCE.PropsSI('T', 'P', Pc_Pa, 'H', h_2a_dry, fluid);
+            
+            throw new Error(
+`计算错误：无需喷水。
+压缩机干式排气温度 (${(T_2a_dry_K - 273.15).toFixed(2)} °C) 已低于
+目标排气温度 (${(T_2_target_K - 273.15).toFixed(2)} °C)。
+(多余能量: ${(energy_excess_W / 1000).toFixed(2)} kW)。
+请检查效率输入或提高“目标出口过热度”。`
+            );
+        }
+        
+        const m_dot_water = energy_excess_W / energy_per_kg_water;
+        
+        // --- H. (v4.1) 格式化输出 (透平式) ---
+        let output = `
+--- 工艺状态点 ---
+入口 (Inlet):
+  吸气饱和压力: ${(Pe_Pa / 1e5).toFixed(3)} bar
+  吸气饱和温度: ${(T_sat_in_K - 273.15).toFixed(2)} °C
+  吸气实际温度: ${(T_1_actual_K - 273.15).toFixed(2)} °C (过热: ${superheat_in_K} K)
+  (h1_actual: ${(h_1_actual / 1000).toFixed(2)} kJ/kg, s1_actual: ${(s_1_actual / 1000).toFixed(4)} kJ/kg·K)
+出口 (Outlet):
+  排气饱和压力: ${(Pc_Pa / 1e5).toFixed(3)} bar
+  排气饱和温度: ${(T_sat_out_K - 273.15).toFixed(2)} °C
+  目标排气温度: ${(T_2_target_K - 273.15).toFixed(2)} °C (过热: ${superheat_out_K} K)
+  (h2_target: ${(h_2_target / 1000).toFixed(2)} kJ/kg)
+喷水 (Spray):
+  喷水入口温度: ${T_water_in_C.toFixed(2)} °C
+  (h_water_in [R718]: ${(h_water_in / 1000).toFixed(2)} kJ/kg)
+
+--- 干式压缩机性能 (无喷水) ---
+干蒸汽质量流 (m_dot_gas): ${m_dot_gas.toFixed(5)} kg/s (${(m_dot_gas * 3600).toFixed(2)} kg/h) ${flow_mode_m4 === 'vol' ? '(计算值)' : '(输入值)'}
+实际吸气 (V_act): ${V_act_m3_s.toFixed(5)} m³/s (${(V_act_m3_s * 3600).toFixed(2)} m³/h) ${flow_mode_m4 === 'mass' ? '(计算值)' : '(输入值)'}
+
+--- 功率平衡 (能量平衡法) ---
+干式等熵出口 (T2s): ${(T_2s_K - 273.15).toFixed(2)} °C (h2s: ${(h_2s / 1000).toFixed(2)} kJ/kg)
+干式等熵功率 (Ws):   ${(Ws_W / 1000).toFixed(3)} kW
+实际轴功率 (W_shaft): ${(W_shaft_W / 1000).toFixed(3)} kW (基于 η_s = ${eta_s_m4.toFixed(3)})
+---
+蒸汽焓升所需功率:     ${(energy_from_gas_h_change / 1000).toFixed(3)} kW
+  (备注: m_dot_gas * (h2_target - h1_actual))
+需喷水带走的热量:     ${(energy_excess_W / 1000).toFixed(3)} kW
+  (备注: W_shaft - 蒸汽焓升所需功率)
+每kg水可吸收热量:   ${(energy_per_kg_water / 1000).toFixed(2)} kJ/kg
+  (备注: h2_target - h_water_in)
+
+========================================
+           MVR 喷水计算结果
+========================================
+所需喷水量 (m_dot_water): ${m_dot_water.toFixed(5)} kg/s
+  (约等于: ${(m_dot_water * 3600).toFixed(3)} kg/h)
+
+--- 最终出口状态 ---
+总出口质量流 (m_dot_total): ${(m_dot_gas + m_dot_water).toFixed(5)} kg/s
+出口混合物干度 (Q_out):       ${(m_dot_gas / (m_dot_gas + m_dot_water)).toFixed(4)}
+`;
+
+        resultsDivM4.textContent = output;
+        lastMode4ResultText = output; // 存储纯文本
+
+        setButtonFresh4();
+        printButtonM4.disabled = false;
+
+    } catch (error) {
+        resultsDivM4.textContent = `计算出错: ${error.message}\n\n请检查输入参数是否在工质的有效范围内。`;
+        console.error(error);
+        lastMode4ResultText = null;
+        printButtonM4.disabled = true;
+    }
+}
+
+/**
+ * (v4.1) 准备模式四的打印报告 (透平式)
+ */
+function printReportMode4() {
+    if (!lastMode4ResultText) {
+        alert("没有可打印的结果。");
+        return;
+    }
+
+    const flow_mode_val = document.querySelector('input[name="flow_mode_m4"]:checked').value;
+    let flow_mode_desc = '';
+    if (flow_mode_val === 'mass') {
+        flow_mode_desc = '按质量流量';
+    } else {
+        flow_mode_desc = '按体积流量';
+    }
+
+    const inputs = {
+        "报告类型": `模式四: MVR 透平式计算 (v4.1)`,
+        "工质": fluidSelectM4.value,
+        "蒸汽流量模式": flow_mode_desc,
+        "干蒸汽质量流量": document.getElementById('flow_mass_m4').value + " " + document.getElementById('flow_mass_unit_m4').value,
+        "实际吸气体积流量": document.getElementById('flow_vol_m4').value + " " + document.getElementById('flow_vol_unit_m4').value,
+        "等熵效率 (η_s)": document.getElementById('eta_s_m4').value,
+        "入口状态定义": document.querySelector('input[name="inlet_mode_m4"]:checked').value === 'temp' ? '按饱和温度' : '按饱和压力',
+        "入口饱和温度 (°C)": document.getElementById('temp_evap_m4').value,
+        "入口饱和压力 (bar)": document.getElementById('press_evap_m4').value,
+        "入口过热度 (K)": document.getElementById('superheat_in_m4').value,
+        "出口状态定义": document.querySelector('input[name="outlet_mode_m4"]:checked').value === 'temp' ? '按饱和温度' : '按饱和压力',
+        "出口饱和温度 (°C)": document.getElementById('temp_cond_m4').value,
+        "出口饱和压力 (bar)": document.getElementById('press_cond_m4').value,
+        "目标出口过热度 (K)": document.getElementById('superheat_out_m4').value,
+        "喷水温度 (°C)": document.getElementById('temp_water_in_m4').value,
+    };
+
+    let printHtml = `
+        <h1>压缩机性能计算报告</h1>
+        <p>计算时间: ${new Date().toLocaleString('zh-CN')}</p>
+        <h2>1. 输入参数 (模式四)</h2>
+        <table class="print-table">
+            ${Object.entries(inputs).map(([key, value]) => `
+                <tr>
+                    <th>${key}</th>
+                    <td>${value}</td>
+                </tr>
+            `).join('')}
+        </table>
+        <h2>2. 计算结果 (模式四)</h2>
+        <pre class="print-results">${lastMode4ResultText}</pre>
+        <h3>--- 报告结束 (编者: 荆炎荣) ---</h3>
+    `;
+
+    callPrint(printHtml);
+}
+
+/**
+ * 打印报告的核心函数 (模块内)
+ * @param {string} printHtml - 要打印的 HTML 内容
+ */
+function callPrint(printHtml) {
+    let printContainer = document.getElementById('print-container');
+    if (printContainer) {
+        printContainer.remove();
+    }
+    printContainer = document.createElement('div');
+    printContainer.id = 'print-container';
+    printContainer.innerHTML = printHtml;
+    document.body.appendChild(printContainer);
+    window.print();
+    setTimeout(() => {
+        if (document.body.contains(printContainer)) {
+            document.body.removeChild(printContainer);
+        }
+    }, 500);
+}
+
+
+/**
+ * (v4.1) 模式四：初始化函数
+ * @param {object} CP - CoolProp 实例
+ */
+export function initMode4(CP) {
+    CP_INSTANCE = CP; // 将 CP 实例存储在模块作用域
+    
+    // 获取 DOM 元素
+    calcButtonM4 = document.getElementById('calc-button-mode-4');
+    resultsDivM4 = document.getElementById('results-mode-4');
+    calcFormM4 = document.getElementById('calc-form-mode-4');
+    printButtonM4 = document.getElementById('print-button-mode-4');
+    fluidSelectM4 = document.getElementById('fluid_m4');
+    fluidInfoDivM4 = document.getElementById('fluid-info-m4');
+    allInputsM4 = calcFormM4.querySelectorAll('input, select');
+
+    // 绑定计算事件
+    calcFormM4.addEventListener('submit', (event) => {
+        event.preventDefault();
+        calculateMode4();
+    });
+
+    // 绑定“脏”状态检查
+    allInputsM4.forEach(input => {
+        input.addEventListener('input', setButtonStale4);
+        input.addEventListener('change', setButtonStale4);
+    });
+
+    // 绑定流体信息更新 (虽然被禁用, 但在未来启用时有用)
+    fluidSelectM4.addEventListener('change', () => {
+        updateFluidInfo(fluidSelectM4, fluidInfoDivM4, CP_INSTANCE);
+    });
+
+    // 绑定打印按钮
+    printButtonM4.addEventListener('click', printReportMode4);
+    
+    console.log("模式四 (MVR v4.1 透平式) 已初始化。");
+}

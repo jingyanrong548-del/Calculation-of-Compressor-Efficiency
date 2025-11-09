@@ -1,8 +1,8 @@
 // =====================================================================
-// mode3_mvr.js: 模式三 (MVR 喷水计算) 模块
-// 版本: v3.5 (MVR Pro) - 修正出口 0 过热度逻辑
-// 职责: 1. 初始化模式三 v3.5 的 UI 事件
-//        2. 执行基于灵活 P/T/过热度/流量 输入的 MVR 能量平衡计算
+// mode3_mvr.js: 模式三 (MVR 容积式计算) 模块
+// 版本: v4.0 (Volumetric) - 移除质量流量, 拆分出模式四
+// 职责: 1. 初始化模式三 (容积式) 的 UI 事件
+//        2. 执行基于 'rpm'/'vol' 输入的 MVR 能量平衡计算
 //        3. 处理打印
 // =====================================================================
 
@@ -45,7 +45,7 @@ function setButtonFresh() {
 
 
 /**
- * (v3.5) 模式三：主计算函数 (MVR 喷水 Pro)
+ * (v4.0) 模式三：主计算函数 (MVR 容积式)
  */
 function calculateMode3() {
     try {
@@ -53,7 +53,7 @@ function calculateMode3() {
         const fluid = fluidSelectM3.value; // 'Water'
         
         // 压缩机
-        const flow_mode_m3 = document.querySelector('input[name="flow_mode_m3"]:checked').value; // 'rpm', 'vol', 'mass'
+        const flow_mode_m3 = document.querySelector('input[name="flow_mode_m3"]:checked').value; // 'rpm', 'vol'
         const eta_s_m3 = parseFloat(document.getElementById('eta_s_m3').value);
         const eta_v_m3 = parseFloat(document.getElementById('eta_v_m3').value);
         
@@ -140,55 +140,35 @@ function calculateMode3() {
         const h_water_in = CP_INSTANCE.PropsSI('H', 'T', T_water_in_K, 'Q', 0, "R718");
 
 
-        // --- (v3.4) F. 计算流量和功率 ---
+        // --- (v4.0) F. 计算流量和功率 (仅容积式) ---
         let m_dot_gas, V_th_m3_s, V_act_m3_s;
 
-        if (flow_mode_m3 === 'rpm' || flow_mode_m3 === 'vol') {
-            // (v3.4) 模式: 按体积
-            if (flow_mode_m3 === 'rpm') {
-                const rpm_val = parseFloat(document.getElementById('rpm_m3').value);
-                const displacement_m3 = parseFloat(document.getElementById('displacement_m3').value);
-                if (isNaN(rpm_val) || isNaN(displacement_m3) || rpm_val <= 0 || displacement_m3 <= 0) {
-                    throw new Error("转速和排量必须是大于零的数字。");
-                }
-                V_th_m3_s = (displacement_m3 / 1e6) * (rpm_val / 60);
-            } else { // 'vol'
-                const flow_val = parseFloat(document.getElementById('flow_m3').value);
-                const flow_unit = document.getElementById('flow_unit_m3').value;
-                if (isNaN(flow_val) || flow_val <= 0) {
-                    throw new Error("理论体积流量必须是大于零的数字。");
-                }
-                if (flow_unit === 'm3/h') {
-                    V_th_m3_s = flow_val / 3600;
-                } else if (flow_unit === 'L/min') {
-                    V_th_m3_s = flow_val / 1000 / 60;
-                } else { // m3/s
-                    V_th_m3_s = flow_val;
-                }
+        // (v4.0) 模式: 按体积
+        if (flow_mode_m3 === 'rpm') {
+            const rpm_val = parseFloat(document.getElementById('rpm_m3').value);
+            const displacement_m3 = parseFloat(document.getElementById('displacement_m3').value);
+            if (isNaN(rpm_val) || isNaN(displacement_m3) || rpm_val <= 0 || displacement_m3 <= 0) {
+                throw new Error("转速和排量必须是大于零的数字。");
             }
-            V_act_m3_s = V_th_m3_s * eta_v_m3;
-            m_dot_gas = V_act_m3_s * rho_1_actual; // m_dot = V_act * rho
-
-        } else { // 'mass'
-            // (v3.4) 模式: 按质量
-            const flow_val = parseFloat(document.getElementById('flow_mass_m3').value);
-            const flow_unit = document.getElementById('flow_mass_unit_m3').value;
+            V_th_m3_s = (displacement_m3 / 1e6) * (rpm_val / 60);
+        } else { // 'vol'
+            const flow_val = parseFloat(document.getElementById('flow_m3').value);
+            const flow_unit = document.getElementById('flow_unit_m3').value;
             if (isNaN(flow_val) || flow_val <= 0) {
-                throw new Error("理论质量流量必须是大于零的数字。");
+                throw new Error("理论体积流量必须是大于零的数字。");
             }
-            
-            if (flow_unit === 't/h') {
-                m_dot_gas = (flow_val * 1000) / 3600;
-            } else if (flow_unit === 'kg/h') {
-                m_dot_gas = flow_val / 3600;
-            } else { // kg/s
-                m_dot_gas = flow_val;
+            if (flow_unit === 'm3/h') {
+                V_th_m3_s = flow_val / 3600;
+            } else if (flow_unit === 'L/min') {
+                V_th_m3_s = flow_val / 1000 / 60;
+            } else { // m3/s
+                V_th_m3_s = flow_val;
             }
-            
-            // (v3.4) 反算体积流量
-            V_act_m3_s = m_dot_gas / rho_1_actual;
-            V_th_m3_s = V_act_m3_s / eta_v_m3;
         }
+        V_act_m3_s = V_th_m3_s * eta_v_m3;
+        m_dot_gas = V_act_m3_s * rho_1_actual; // m_dot = V_act * rho
+
+        // (v4.0) 移除 "mass" 模式
         
         // --- F.1: 计算功率 ---
         // F.1.1: 找到干式压缩的等熵出口 (2s)
@@ -200,10 +180,7 @@ function calculateMode3() {
         const W_shaft_W = Ws_W / eta_s_m3;
 
         // --- G. (v3.4) 求解喷水量 (m_dot_water) ---
-        // W_shaft_W + m_dot_gas*h_1_actual + m_dot_water*h_water_in = (m_dot_gas + m_dot_water) * h_2_target
-        // W_shaft_W = m_dot_gas*(h_2_target - h_1_actual) + m_dot_water*(h_2_target - h_water_in)
-        // m_dot_water = ( W_shaft_W - m_dot_gas*(h_2_target - h_1_actual) ) / (h_2_target - h_water_in)
-
+        // ... (此段逻辑无变化) ...
         const energy_from_gas_h_change = m_dot_gas * (h_2_target - h_1_actual);
         const energy_excess_W = W_shaft_W - energy_from_gas_h_change;
         const energy_per_kg_water = h_2_target - h_water_in;
@@ -212,9 +189,7 @@ function calculateMode3() {
             throw new Error(`计算错误：每kg喷水吸收的能量 (h2_target - h_water_in) 小于等于零。 (${(energy_per_kg_water/1000).toFixed(2)} kJ/kg)`);
         }
         
-        // (v3.1) 新校验：如果多余能量为负，说明不需要喷水
         if (energy_excess_W < 0) {
-            // 计算一下干式排气温度
             const h_2a_dry = (W_shaft_W / m_dot_gas) + h_1_actual;
             const T_2a_dry_K = CP_INSTANCE.PropsSI('T', 'P', Pc_Pa, 'H', h_2a_dry, fluid);
             
@@ -230,6 +205,7 @@ function calculateMode3() {
         const m_dot_water = energy_excess_W / energy_per_kg_water;
         
         // --- H. (v3.4) 格式化输出 ---
+        // ... (输出内容无变化, 因为 V_th_m3_s, V_act_m3_s, m_dot_gas 仍然被计算) ...
         let output = `
 --- 工艺状态点 ---
 入口 (Inlet):
@@ -289,7 +265,7 @@ function calculateMode3() {
 }
 
 /**
- * (v3.5) 准备模式三的打印报告
+ * (v4.0) 准备模式三的打印报告 (容积式)
  */
 function printReportMode3() {
     if (!lastMode3ResultText) {
@@ -303,18 +279,16 @@ function printReportMode3() {
         flow_mode_desc = '按转速与排量';
     } else if (flow_mode_val === 'vol') {
         flow_mode_desc = '按体积流量';
-    } else {
-        flow_mode_desc = '按质量流量';
     }
 
     const inputs = {
-        "报告类型": `模式三: MVR 喷水计算 (v3.5)`, // 版本更新
+        "报告类型": `模式三: MVR 容积式计算 (v4.0)`, // 版本更新
         "工质": fluidSelectM3.value,
         "理论输气量模式": flow_mode_desc,
         "转速 (RPM)": document.getElementById('rpm_m3').value,
         "每转排量 (cm³/rev)": document.getElementById('displacement_m3').value,
         "理论体积流量": document.getElementById('flow_m3').value + " " + document.getElementById('flow_unit_m3').value,
-        "理论质量流量": document.getElementById('flow_mass_m3').value + " " + document.getElementById('flow_mass_unit_m3').value,
+        // (v4.0) 移除 "理论质量流量"
         "等熵效率 (η_s)": document.getElementById('eta_s_m3').value,
         "容积效率 (η_v)": document.getElementById('eta_v_m3').value,
         "入口状态定义": document.querySelector('input[name="inlet_mode_m3"]:checked').value === 'temp' ? '按饱和温度' : '按饱和压力',
@@ -371,7 +345,7 @@ function callPrint(printHtml) {
 
 
 /**
- * (v3.5) 模式三：初始化函数
+ * (v4.0) 模式三：初始化函数
  * @param {object} CP - CoolProp 实例
  */
 export function initMode3(CP) {
@@ -406,5 +380,5 @@ export function initMode3(CP) {
     // 绑定打印按钮
     printButtonM3.addEventListener('click', printReportMode3);
     
-    console.log("模式三 (MVR v3.5) 已初始化。");
+    console.log("模式三 (MVR v4.0 容积式) 已初始化。");
 }
