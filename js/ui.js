@@ -1,6 +1,6 @@
 // =====================================================================
 // ui.js: 界面交互模块
-// 版本: v3.0
+// 版本: v3.1 (MVR 模式升级)
 // 职责: 1. 处理主选项卡 (Tabs) 切换
 //        2. 处理干式压缩内部的模式 1/2 切换
 //        3. 处理所有模式中共用的表单 UI 逻辑 (如流量模式等)
@@ -21,6 +21,12 @@ function setupFlowModeToggle(modeSelector, rpmContainerId, volContainerId, displ
     const displacementInput = document.getElementById(displacementInputId);
     const flowInput = document.getElementById(flowInputId);
 
+    // 检查元素是否存在
+    if (!rpmInputs || !volInputs || !displacementInput || !flowInput || radios.length === 0) {
+        console.error("FlowModeToggle: 缺少一个或多个 DOM 元素");
+        return;
+    }
+
     radios.forEach(radio => {
         radio.addEventListener('change', () => {
             if (radio.value === 'rpm') {
@@ -38,7 +44,7 @@ function setupFlowModeToggle(modeSelector, rpmContainerId, volContainerId, displ
     });
     
     // 触发一次 change 事件以确保初始状态正确
-    document.querySelector(`${modeSelector}[value='rpm']`).dispatchEvent(new Event('change'));
+    document.querySelector(`${modeSelector}[checked]`).dispatchEvent(new Event('change'));
 }
 
 /**
@@ -63,8 +69,7 @@ function setupMode1PowerToggle() {
             }
         });
     });
-    // 触发初始状态
-    document.querySelector("input[name='power_mode'][value='input']").dispatchEvent(new Event('change'));
+    document.querySelector("input[name='power_mode'][checked]").dispatchEvent(new Event('change'));
 }
 
 /**
@@ -83,8 +88,7 @@ function setupMode1CapacityToggle() {
             }
         });
     });
-    // 触发初始状态
-    document.querySelector("input[name='capacity_mode'][value='heating']").dispatchEvent(new Event('change'));
+    document.querySelector("input[name='capacity_mode'][checked]").dispatchEvent(new Event('change'));
 }
 
 /**
@@ -112,8 +116,7 @@ function setupMode2EffToggle() {
             }
         });
     });
-    // 触发初始状态
-    document.querySelector("input[name='eff_mode_m2'][value='input']").dispatchEvent(new Event('change'));
+    document.querySelector("input[name='eff_mode_m2'][checked]").dispatchEvent(new Event('change'));
 }
 
 /**
@@ -133,10 +136,49 @@ function setupMode2CoolerToggle() {
             targetTempInput.required = false;
         }
     });
-    // 确保初始状态为隐藏
     coolerInputs.style.display = 'none';
     targetTempInput.required = false;
 }
+
+/**
+ * (v3.1 新增) 辅助函数：设置模式三的 P/T 切换
+ * @param {string} radioName - 'name' 属性, e.g., "inlet_mode_m3"
+ * @param {string} tempContainerId - 温度输入组的 ID
+ * @param {string} pressContainerId - 压力输入组的 ID
+ * @param {string} tempInputId - 温度 input 的 ID
+ * @param {string} pressInputId - 压力 input 的 ID
+ */
+function setupMode3PTToggle(radioName, tempContainerId, pressContainerId, tempInputId, pressInputId) {
+    const radios = document.querySelectorAll(`input[name='${radioName}']`);
+    const tempGroup = document.getElementById(tempContainerId);
+    const pressGroup = document.getElementById(pressContainerId);
+    const tempInput = document.getElementById(tempInputId);
+    const pressInput = document.getElementById(pressInputId);
+
+    if (!tempGroup || !pressGroup || !tempInput || !pressInput || radios.length === 0) {
+        console.error("Mode3PTToggle: 缺少一个或多个 DOM 元素");
+        return;
+    }
+
+    radios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (radio.value === 'temp') {
+                tempGroup.style.display = 'block';
+                pressGroup.style.display = 'none';
+                tempInput.required = true;
+                pressInput.required = false;
+            } else {
+                tempGroup.style.display = 'none';
+                pressGroup.style.display = 'block';
+                tempInput.required = false;
+                pressInput.required = true;
+            }
+        });
+    });
+    // 触发初始状态
+    document.querySelector(`input[name='${radioName}'][checked]`).dispatchEvent(new Event('change'));
+}
+
 
 /**
  * 主 UI 初始化函数
@@ -191,33 +233,20 @@ export function initUI() {
 
     // --- 3. 初始化所有模式中的共用 UI 逻辑 ---
     
-    // 模式一：流量模式
-    setupFlowModeToggle(
-        "input[name='flow_mode']", 
-        'rpm-inputs-m1', 
-        'vol-inputs-m1', 
-        'displacement', 
-        'flow_m3h'
-    );
-    // 模式一：功率模式
+    // 模式一：
+    setupFlowModeToggle("input[name='flow_mode']", 'rpm-inputs-m1', 'vol-inputs-m1', 'displacement', 'flow_m3h');
     setupMode1PowerToggle();
-    // 模式一：容量模式
     setupMode1CapacityToggle();
 
-    // 模式二：流量模式
-    setupFlowModeToggle(
-        "input[name='flow_mode_m2']", 
-        'rpm-inputs-m2', 
-        'vol-inputs-m2', 
-        'displacement_m2', 
-        'flow_m3h_m2'
-    );
-    // 模式二：效率模式
+    // 模式二：
+    setupFlowModeToggle("input[name='flow_mode_m2']", 'rpm-inputs-m2', 'vol-inputs-m2', 'displacement_m2', 'flow_m3h_m2');
     setupMode2EffToggle();
-    // 模式二：后冷却器
     setupMode2CoolerToggle();
 
-    // 模式三：(模式三没有复杂的 UI 切换, 暂时不需要)
+    // (v3.1 新增) 模式三：
+    setupFlowModeToggle("input[name='flow_mode_m3']", 'rpm-inputs-m3', 'vol-inputs-m3', 'displacement_m3', 'flow_m3');
+    setupMode3PTToggle('inlet_mode_m3', 'inlet-temp-m3', 'inlet-press-m3', 'temp_evap_m3', 'press_evap_m3');
+    setupMode3PTToggle('outlet_mode_m3', 'outlet-temp-m3', 'outlet-press-m3', 'temp_cond_m3', 'press_cond_m3');
     
-    console.log("UI 模块已初始化。");
+    console.log("UI 模块 (v3.1) 已初始化。");
 }
