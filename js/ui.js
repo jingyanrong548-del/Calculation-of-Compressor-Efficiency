@@ -1,39 +1,45 @@
 // =====================================================================
 // ui.js: UI 界面交互逻辑
-// 版本: v4.2 (新增 M2 子选项卡)
-// 职责: 1. 处理主选项卡 (M1/M2, M3, M4)
-//        2. 处理 M1/M2 模式电台
-//        3. 处理所有流量模式电台
+// 版本: v4.4 (界面重构)
+// 职责: 1. (v4.4) 处理主选项卡 (M1, M2, M3, M4)
+//        2. (v4.4) [已移除] M1/M2 模式电台逻辑
+//        3. 处理所有流量模式电台 (v4.3 bug 修复)
 //        4. 处理 MVR 状态定义电台
 //        5. 处理后冷却器复选框
-//        6. (新增) 处理 M2A / M2B 子选项卡
+//        6. 处理 M2A / M2B 子选项卡 (v4.4 移除 radio 依赖)
 // =====================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- 主选项卡切换 (干式, MVR容积式, MVR透平式) ---
-    const tabBtnDry = document.getElementById('tab-btn-dry');
-    const tabBtnMvr = document.getElementById('tab-btn-mvr');
-    const tabBtnTurbo = document.getElementById('tab-btn-turbo');
+    // --- (v4.4) 主选项卡切换 (M1, M2, M3, M4) ---
+    const tabBtnM1 = document.getElementById('tab-btn-m1');
+    const tabBtnM2 = document.getElementById('tab-btn-m2');
+    const tabBtnM3 = document.getElementById('tab-btn-m3');
+    const tabBtnM4 = document.getElementById('tab-btn-m4');
     
-    const contentDry = document.getElementById('tab-content-dry');
-    const contentMvr = document.getElementById('tab-content-mvr');
-    const contentTurbo = document.getElementById('tab-content-turbo');
+    const contentM1 = document.getElementById('tab-content-m1');
+    const contentM2 = document.getElementById('tab-content-m2');
+    const contentM3 = document.getElementById('tab-content-m3');
+    const contentM4 = document.getElementById('tab-content-m4');
 
     const tabs = [
-        { btn: tabBtnDry, content: contentDry },
-        { btn: tabBtnMvr, content: contentMvr },
-        { btn: tabBtnTurbo, content: contentTurbo }
+        { btn: tabBtnM1, content: contentM1 },
+        { btn: tabBtnM2, content: contentM2 },
+        { btn: tabBtnM3, content: contentM3 },
+        { btn: tabBtnM4, content: contentM4 }
     ];
 
     tabs.forEach(tab => {
-        if (tab.btn) {
+        // 确保按钮和内容都存在
+        if (tab.btn && tab.content) {
             tab.btn.addEventListener('click', () => {
                 // 1. 重置所有
                 tabs.forEach(t => {
-                    t.btn.classList.remove('active');
-                    t.content.style.display = 'none';
-                    t.content.classList.remove('active');
+                    if (t.btn && t.content) {
+                        t.btn.classList.remove('active');
+                        t.content.style.display = 'none';
+                        t.content.classList.remove('active');
+                    }
                 });
                 // 2. 激活当前
                 tab.btn.classList.add('active');
@@ -43,26 +49,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- 模式一 / 模式二 电台切换 ---
-    const mode1Radio = document.getElementById('mode-1-radio');
-    const mode2Radio = document.getElementById('mode-2-radio');
-    const mode1Container = document.getElementById('mode-1-container');
-    const mode2Container = document.getElementById('mode-2-container');
+    // --- (v4.4) [已删除] 模式一 / 模式二 电台切换 ---
+    // (此逻辑已被 4 个一级标签页取代)
 
-    if (mode1Radio && mode2Radio && mode1Container && mode2Container) {
-        mode1Radio.addEventListener('change', () => {
-            if (mode1Radio.checked) {
-                mode1Container.style.display = 'block';
-                mode2Container.style.display = 'none';
-            }
-        });
-        mode2Radio.addEventListener('change', () => {
-            if (mode2Radio.checked) {
-                mode1Container.style.display = 'none';
-                mode2Container.style.display = 'block';
-            }
-        });
-    }
 
     // --- 流量模式 (Flow Mode) 电台切换 ---
     // Helper function to setup flow mode toggles
@@ -270,6 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // ==========================================================
     // v4.2 新增: 模式 2A / 2B 子选项卡切换
+    // (v4.4 重构: 移除对 M1/M2 radio 的依赖)
     // ==========================================================
     const tabBtn2A = document.getElementById('tab-btn-mode-2a');
     const tabBtn2B = document.getElementById('tab-btn-mode-2b');
@@ -283,10 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
             content2A.style.display = 'block';
             content2B.style.display = 'none';
             
-            // 确保 M2 容器在主电台被选中时可见
-            mode2Container.style.display = 'block';
-            mode1Container.style.display = 'none';
-            mode2Radio.checked = true;
+            // [DELETED v4.4] 移除对 M1/M2 radio 的反向控制
         });
 
         tabBtn2B.addEventListener('click', () => {
@@ -295,10 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
             content2B.style.display = 'block';
             content2A.style.display = 'none';
             
-            // 确保 M2 容器在主电台被选中时可见
-            mode2Container.style.display = 'block';
-            mode1Container.style.display = 'none';
-            mode2Radio.checked = true;
+            // [DELETED v4.4] 移除对 M1/M2 radio 的反向控制
         });
     }
 

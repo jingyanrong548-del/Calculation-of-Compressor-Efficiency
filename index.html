@@ -180,33 +180,22 @@
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">压缩机性能计算器 v4.3 (RPM 逻辑修复)</h1>
         
         <div class="flex border-b-2 border-gray-300 mb-0">
-            <button id="tab-btn-dry" class="tab-button active">
-                ⚙️ 干式压缩 (模式 1 & 2)
+            <button id="tab-btn-m1" class="tab-button active">
+                模式一: 性能评估
             </button>
-            <button id="tab-btn-mvr" class="tab-button">
-                💧 MVR 容积式 (模式 3)
+            <button id="tab-btn-m2" class="tab-button">
+                模式二: 性能预测
             </button>
-            <button id="tab-btn-turbo" class="tab-button">
-                💨 MVR 透平式 (模式 4)
+            <button id="tab-btn-m3" class="tab-button">
+                💧 MVR 容积式
+            </button>
+            <button id="tab-btn-m4" class="tab-button">
+                💨 MVR 透平式
             </button>
         </div>
 
-        <div id="tab-content-dry" class="tab-content active">
+        <div id="tab-content-m1" class="tab-content active">
             
-            <div class="mb-4 bg-white p-4 rounded-lg shadow-md border-b">
-                <label class="text-xl font-semibold text-gray-800">选择计算模式:</label>
-                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-6 mt-2">
-                    <label class="inline-flex items-center">
-                        <input type="radio" name="main_mode" id="mode-1-radio" value="eval" class="form-radio h-5 w-5 text-blue-600" checked>
-                        <span class="ml-2 text-lg">模式一: 性能评估 (输入功率/容量, 计算效率)</span>
-                    </label>
-                    <label class="inline-flex items-center">
-                        <input type="radio" name="main_mode" id="mode-2-radio" value="predict" class="form-radio h-5 w-5 text-blue-600">
-                        <span class="ml-2 text-lg">模式二: 性能预测 (输入效率, 计算功率/容量)</span>
-                    </label>
-                </div>
-            </div>
-
             <div id="mode-1-container">
                 <div class="bg-white p-6 sm:p-8">
                     
@@ -395,7 +384,10 @@
                 </div>
             </div>
             
-            <div id="mode-2-container" style="display: none;">
+            </div>
+
+        <div id="tab-content-m2" class="tab-content">
+            <div id="mode-2-container">
                 <div class="bg-white p-0 sm:p-0">
 
                     <h2 class="text-3xl font-bold text-center text-gray-800 pt-6 sm:pt-8 mb-6">模式二: 性能预测</h2>
@@ -772,7 +764,7 @@
             </div>
         </div>
 
-        <div id="tab-content-mvr" class="tab-content">
+        <div id="tab-content-m3" class="tab-content">
             <div id="mode-3-container">
                 <div class="bg-white p-6 sm:p-8">
 
@@ -966,7 +958,7 @@
             </div>
         </div>
         
-        <div id="tab-content-turbo" class="tab-content">
+        <div id="tab-content-m4" class="tab-content">
             <div id="mode-4-container">
                 <div class="bg-white p-6 sm:p-8">
 
