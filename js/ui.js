@@ -66,24 +66,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 流量模式 (Flow Mode) 电台切换 ---
     // Helper function to setup flow mode toggles
-    function setupFlowModeToggle(radioName, rpmInputsId, volInputsId) {
+    /**
+     * (v4.3 修复)
+     * 修复了硬编码 'rpm' 导致的模式四 (mass/vol) 切换逻辑错误
+     */
+    function setupFlowModeToggle(radioName, firstInputsId, secondInputsId) {
         const radios = document.querySelectorAll(`input[name="${radioName}"]`);
-        const rpmInputs = document.getElementById(rpmInputsId);
-        const volInputs = document.getElementById(volInputsId);
+        const firstInputs = document.getElementById(firstInputsId);
+        const secondInputs = document.getElementById(secondInputsId);
 
-        if (!radios.length || !rpmInputs || !volInputs) return;
+        if (!radios.length || !firstInputs || !secondInputs) return;
+
+        // [FIX] 动态获取第一个单选按钮的 value (例如 'rpm' 或 'mass')
+        // 这假设 HTML 中单选按钮的顺序与参数传入的 ID 顺序一致
+        const firstValue = radios[0].value;
 
         const toggle = (val) => {
-            if (val === 'rpm') {
-                rpmInputs.style.display = 'block';
-                volInputs.style.display = 'none';
-                rpmInputs.querySelectorAll('input').forEach(i => i.required = true);
-                volInputs.querySelectorAll('input').forEach(i => i.required = false);
+            if (val === firstValue) { // [FIX] 不再硬编码 'rpm', 而是比较 firstValue
+                firstInputs.style.display = 'block';
+                secondInputs.style.display = 'none';
+                firstInputs.querySelectorAll('input').forEach(i => i.required = true);
+                secondInputs.querySelectorAll('input').forEach(i => i.required = false);
             } else {
-                rpmInputs.style.display = 'none';
-                volInputs.style.display = 'block';
-                rpmInputs.querySelectorAll('input').forEach(i => i.required = false);
-                volInputs.querySelectorAll('input').forEach(i => i.required = true);
+                firstInputs.style.display = 'none';
+                secondInputs.style.display = 'block';
+                firstInputs.querySelectorAll('input').forEach(i => i.required = false);
+                secondInputs.querySelectorAll('input').forEach(i => i.required = true);
             }
         };
 
