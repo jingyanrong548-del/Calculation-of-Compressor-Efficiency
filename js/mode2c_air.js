@@ -1,14 +1,10 @@
 // =====================================================================
 // mode2c_air.js: 模式 2C (空压机) 模块
-// 版本: v5.1 (HAPropsSI 7-arg 修复)
-// 职责: 1. 初始化模式 2C (空压机) 的 UI 事件
-//        2. (v5.1 修复) 确保所有 HAPropsSI 调用都是 7 个参数
-//        3. 处理绝热、夹套冷却、喷水冷却三种模式
-//        4. 计算显热/潜热负荷及后冷器析出水量
+// 版本: v5.3 (修复 '喷水冷却' bisection 求解器逻辑)
+// 职责: 1. (v5.1) 确保所有 HAPropsSI 调用都是 7 个参数
+//        2. (v5.2) 修复 'disabled' 切换
+//        3. (v5.3) [修复] 增加物理约束 (m_water >= 0) 到求解器
 // =====================================================================
-
-// (这个模块暂时不需要 updateFluidInfo, 因为工质固定为湿空气)
-// import { updateFluidInfo } from './coolprop_loader.js';
 
 // --- 模块内部变量 ---
 let CP_INSTANCE = null;
@@ -19,12 +15,15 @@ let calcButtonM2C, resultsDivM2C, calcFormM2C, printButtonM2C;
 let allInputsM2C;
 let radioCoolingNone, radioCoolingJacket, radioCoolingInjection;
 let jacketInputsDiv, injectionInputsDiv;
-let enableCoolerCalcM2C, coolerInputsDivM2C; // (基于 v4.2 UI 结构的假设)
+let enableCoolerCalcM2C, coolerInputsDivM2C;
+
+// (v5.2 修复) 增加对 input 元素的引用
+let jacketHeatInput, injectionTempInput;
 
 // --- 按钮状态 (2C) ---
 const btnText2C = "计算性能 (模式 2C)";
 const btnTextStale2C = "重新计算 (模式 2C)";
-const classesFresh2C = ['bg-cyan-600', 'hover:bg-cyan-700', 'text-white']; // (v5.1 颜色修正)
+const classesFresh2C = ['bg-cyan-600', 'hover:bg-cyan-700', 'text-white'];
 const classesStale2C = ['bg-yellow-500', 'hover:bg-yellow-600', 'text-black'];
 
 /**
@@ -40,24 +39,32 @@ function setButtonStale2C() {
 }
 
 /**
- * 切换冷却模式特定输入框的显示
+ * (v5.2 修复) 切换冷却模式特定输入框的显示和禁用状态
  */
 function toggleCoolingInputs() {
     if (radioCoolingJacket.checked) {
         jacketInputsDiv.style.display = 'block';
+        jacketHeatInput.disabled = false;
+        jacketHeatInput.required = true;
     } else {
         jacketInputsDiv.style.display = 'none';
+        jacketHeatInput.disabled = true;
+        jacketHeatInput.required = false;
     }
 
     if (radioCoolingInjection.checked) {
         injectionInputsDiv.style.display = 'block';
+        injectionTempInput.disabled = false;
+        injectionTempInput.required = true;
     } else {
         injectionInputsDiv.style.display = 'none';
+        injectionTempInput.disabled = true;
+        injectionTempInput.required = false;
     }
 }
 
 /**
- * (v5.1) 模式 2C 核心计算函数
+ * (v5.3 修复) 模式 2C 核心计算函数
  */
 async function calculateMode2C() {
     const CP = CP_INSTANCE;
@@ -77,7 +84,7 @@ async function calculateMode2C() {
             // 2. 获取表单数据
             const formData = new FormData(calcFormM2C);
             
-            // 进口参数 (需求 2.1)
+            // 进口参数
             const p_in_bar = parseFloat(formData.get('p_in_m2c'));
             const T_in_C = parseFloat(formData.get('T_in_m2c'));
             const RH_in_percent = parseFloat(formData.get('RH_in_m2c'));
@@ -86,15 +93,15 @@ async function calculateMode2C() {
             const p_out_bar = parseFloat(formData.get('p_out_m2c'));
             const eff_isen = parseFloat(formData.get('eff_isen_m2c')) / 100.0;
             
-            // 流量 (AI 补充)
+            // 流量
             const V_flow_in_m3h = parseFloat(formData.get('V_flow_in_m2c'));
             
-            // 冷却方式 (需求 2.4)
+            // 冷却方式
             const cooling_type = formData.get('cooling_type_m2c');
             const jacket_heat_kW = parseFloat(formData.get('jacket_heat_m2c')) || 0;
             const T_water_in_C = parseFloat(formData.get('T_water_in_m2c')) || 0;
 
-            // 后冷却器 (需求 2.3)
+            // 后冷却器
             const enable_cooler_calc = formData.get('enable_cooler_calc_m2c') === 'on';
             const target_temp_C = parseFloat(formData.get('target_temp_m2c'));
             
@@ -108,7 +115,6 @@ async function calculateMode2C() {
             const target_temp_K = target_temp_C + 273.15;
 
             // 4. 计算进口状态 (湿空气)
-            // HAPropsSI(Output, Input1, Value1, Input2, Value2, Input3, Value3)
             const H_in_kj_kg = CP.HAPropsSI('H', 'T', T_in_K, 'P', p_in_Pa, 'R', RH_in_fraction) / 1000.0;
             const S_in_kj_kgK = CP.HAPropsSI('S', 'T', T_in_K, 'P', p_in_Pa, 'R', RH_in_fraction) / 1000.0;
             const W_in_kg_kg = CP.HAPropsSI('W', 'T', T_in_K, 'P', p_in_Pa, 'R', RH_in_fraction);
@@ -118,7 +124,6 @@ async function calculateMode2C() {
             const m_da_kgs = V_flow_in_m3s / V_in_m3_kg; // kg_da/s
 
             // 6. 计算理论压缩 (等熵)
-            // 假设等熵过程含湿量不变 (W_in)
             const H_out_isen_kj_kg = CP.HAPropsSI('H', 'P', p_out_Pa, 'S', S_in_kj_kgK * 1000, 'W', W_in_kg_kg) / 1000.0;
             const T_out_isen_K = CP.HAPropsSI('T', 'P', p_out_Pa, 'S', S_in_kj_kgK * 1000, 'W', W_in_kg_kg);
             const W_isen_kj_kg = H_out_isen_kj_kg - H_in_kj_kg; // 比理论功 (kJ/kg_da)
@@ -140,7 +145,7 @@ async function calculateMode2C() {
                 cooling_notes = "计算模式: 绝热压缩 (无冷却)";
             
             } else if (cooling_type === 'cooling_jacket') {
-                // 模式 8.2: 夹套冷却 (需求 2.4)
+                // 模式 8.2: 夹套冷却
                 const Q_cooling_kj_kg = jacket_heat_kW / m_da_kgs; // 比冷却量 (kJ/kg_da)
                 H_out_real_kj_kg = H_in_kj_kg + W_real_kj_kg - Q_cooling_kj_kg;
                 W_out_real_kg_kg = W_in_kg_kg; // 含湿量不变
@@ -148,7 +153,7 @@ async function calculateMode2C() {
                 cooling_notes = `计算模式: 夹套冷却 (移热 ${jacket_heat_kW.toFixed(2)} kW)`;
             
             } else if (cooling_type === 'cooling_injection') {
-                // 模式 8.3: 喷水冷却 (需求 2.4)
+                // 模式 8.3: 喷水冷却
                 
                 // 喷入水的焓 (kJ/kg_w)
                 const h_water_in_kj_kg = CP.PropsSI('H', 'T', T_water_in_K, 'P', p_out_Pa, 'Water') / 1000.0;
@@ -160,7 +165,16 @@ async function calculateMode2C() {
                     const W_out_sat_kg_kg = CP.HAPropsSI('W', 'T', T_out_guess_K, 'P', p_out_Pa, 'R', 1.0);
                     
                     // 2. 根据质量平衡计算所需喷水量
-                    const m_water_needed_kg_kg = W_out_sat_kg_kg - W_in_kg_kg;
+                    let m_water_needed_kg_kg = W_out_sat_kg_kg - W_in_kg_kg;
+                    
+                    // ================== v5.3 修复开始 ==================
+                    // 物理约束: 我们不能"负喷水"。
+                    // 如果猜测的 T_out 太低 (低于进口露点), 出口饱和含湿量 < 进口含湿量
+                    // 此时强制 m_water = 0, 求解器将自动提高 T_guess
+                    if (m_water_needed_kg_kg < 0) {
+                        m_water_needed_kg_kg = 0;
+                    }
+                    // ================== v5.3 修复结束 ==================
                     
                     // 3. 根据能量平衡计算 H_out
                     const H_out_calc_kj_kg = H_in_kj_kg + W_real_kj_kg + m_water_needed_kg_kg * h_water_in_kj_kg;
@@ -188,12 +202,10 @@ async function calculateMode2C() {
 
             // 9. 计算热负荷 (需求 2.2)
             
-            // ================== v5.1 修复开始 ==================
-            // (Hha 必须有 7 个参数。使用 W_in_kg_kg)
+            // (v5.1 修复) (Hha 必须有 7 个参数。使用 W_in_kg_kg)
             const H_da_in_kj_kg = CP.HAPropsSI('Hha', 'T', T_in_K, 'P', p_in_Pa, 'W', W_in_kg_kg) / 1000.0;
-            // (Hha 必须有 7 个参数。使用 W_out_real_kg_kg)
+            // (v5.1 修复) (Hha 必须有 7 个参数。使用 W_out_real_kg_kg)
             const H_da_out_kj_kg = CP.HAPropsSI('Hha', 'T', T_out_real_K, 'P', p_out_Pa, 'W', W_out_real_kg_kg) / 1000.0;
-            // ================== v5.1 修复结束 ==================
 
             const Q_total_kj_kg = H_out_real_kj_kg - H_in_kj_kg; // 压缩机总热负荷 (kJ/kg_da)
             const Q_sensible_kj_kg = H_da_out_kj_kg - H_da_in_kj_kg; // 显热 (kJ/kg_da)
@@ -203,6 +215,7 @@ async function calculateMode2C() {
             let Q_cooler_kW = 0;
             let m_condensed_kgh = 0;
             let cooler_notes = "后冷却器: 未启用";
+            let cooler_target_temp_C = target_temp_C; // (v5.2) 确保变量存在
 
             if (enable_cooler_calc) {
                 // 冷却器进口状态 (即压缩机出口)
@@ -224,7 +237,7 @@ async function calculateMode2C() {
                 const Q_cooler_kj_kg = (H_in_cooler_kj_kg - H_out_cooler_kj_kg) - (m_condensed_kg_kg * h_f_condensed_kj_kg);
                 Q_cooler_kW = Q_cooler_kj_kg * m_da_kgs; // (kW)
                 
-                cooler_notes = `后冷却器: 启用 (目标 ${target_temp_C}°C)`;
+                cooler_notes = `后冷却器: 启用 (目标 ${cooler_target_temp_C}°C)`;
             }
 
             // 11. 格式化输出
@@ -340,7 +353,7 @@ function printReportMode2C() {
             <h1>无油压缩机性能计算器 - 模式 2C 报告</h1>
             <pre>${lastMode2CResultText}</pre>
             <footer>
-                <p>版本: v5.1 (模式 2C)</p>
+                <p>版本: v5.3 (模式 2C)</p>
                 <p>计算时间: ${new Date().toLocaleString()}</p>
             </footer>
         </body>
@@ -368,11 +381,16 @@ function printReportMode2C() {
  * 查找 f(x) = 0 在 [a, b] 上的根
  */
 function bisection(f, a, b, tol = 1e-5, maxIter = 100) {
+    // (v5.3 修复) 检查边界是否有效
+    if (isNaN(a) || isNaN(b)) {
+        return { success: false, message: `求解失败：边界无效 (T_low=${a}, T_high=${b})。` };
+    }
+
     let fa = f(a);
     let fb = f(b);
 
     if (fa * fb >= 0) {
-        return { success: false, message: `求解失败：f(a) 和 f(b) 必须异号 (f(a)=${fa.toFixed(2)}, f(b)=${fb.toFixed(2)})。检查 T_low 和 T_high 范围。` };
+        return { success: false, message: `求解失败：f(a) 和 f(b) 必须异号 (f(a)=${fa.toFixed(2)}, f(b)=${fb.toFixed(2)})。检查 T_low (${a.toFixed(2)}) 和 T_high (${b.toFixed(2)}) 范围。` };
     }
 
     let c, fc;
@@ -396,7 +414,7 @@ function bisection(f, a, b, tol = 1e-5, maxIter = 100) {
 
 
 /**
- * (v5.0) 模式 2C：初始化函数
+ * (v5.2 修复) 模式 2C：初始化函数
  * @param {object} CP - CoolProp 实例
  */
 export function initMode2C(CP) {
@@ -415,9 +433,14 @@ export function initMode2C(CP) {
     jacketInputsDiv = document.getElementById('jacket-inputs-m2c');
     injectionInputsDiv = document.getElementById('injection-inputs-m2c');
     
+    // (v5.2 修复) 获取 input 元素
+    jacketHeatInput = document.getElementById('jacket_heat_m2c');
+    injectionTempInput = document.getElementById('T_water_in_m2c');
+    
     // 后冷却器
     enableCoolerCalcM2C = document.getElementById('enable_cooler_calc_m2c');
-    coolerInputsDivM2C = document.getElementById('cooler-inputs-m2c'); // 假设 ID
+    coolerInputsDivM2C = document.getElementById('cooler-inputs-m2c'); 
+    const coolerTempInput = document.getElementById('target_temp_m2c'); // (v5.2 修复)
 
     if (!calcFormM2C) {
         console.warn("Mode 2C (Air Compressor) elements not found. Skipping init.");
@@ -437,7 +460,6 @@ export function initMode2C(CP) {
         input.addEventListener('input', setButtonStale2C);
         input.addEventListener('change', setButtonStale2C);
     });
-    // (v4.4 风格: 确保 select 也能触发)
     calcFormM2C.querySelectorAll('select').forEach(select => {
         select.addEventListener('change', setButtonStale2C);
     });
@@ -452,15 +474,21 @@ export function initMode2C(CP) {
             radio.addEventListener('change', toggleCoolingInputs);
         }
     });
-    // 初始调用一次以设置正确显示
-    if (jacketInputsDiv && injectionInputsDiv) {
+    // 初始调用一次以设置正确显示和禁用状态
+    if (jacketInputsDiv && injectionInputsDiv && jacketHeatInput && injectionTempInput) {
         toggleCoolingInputs();
     }
 
-    // 绑定后冷却器 Toggle (复用 ui.js 的逻辑，但这里也实现以便模块独立)
+    // 绑定后冷却器 Toggle
     if (enableCoolerCalcM2C && coolerInputsDivM2C) {
         const toggleCooler = () => {
-            coolerInputsDivM2C.style.display = enableCoolerCalcM2C.checked ? 'block' : 'none';
+            const isChecked = enableCoolerCalcM2C.checked;
+            coolerInputsDivM2C.style.display = isChecked ? 'block' : 'none';
+            // (v5.2 修复) 同样禁用输入
+            if (coolerTempInput) {
+                coolerTempInput.disabled = !isChecked;
+                coolerTempInput.required = isChecked;
+            }
         };
         enableCoolerCalcM2C.addEventListener('change', toggleCooler);
         // 初始调用
