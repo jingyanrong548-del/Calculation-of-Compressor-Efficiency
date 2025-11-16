@@ -1,14 +1,11 @@
 // =====================================================================
 // coolprop_loader.js: CoolProp 物性库加载器
-// 版本: v7.2 (最终路径修复)
-// 职责: 1. 异步加载 CoolProp WASM 模块。
+// 版本: v7.7 (修复 fluidInfoData 丢失问题)
+// 职责: 1. 异步加载 CoolProp WASM 模块，并显式指定 .wasm 文件路径。
 //        2. 提供一个公共的 updateFluidInfo 函数。
 // =====================================================================
 
-// 导入 CoolProp JS 包装器
-// **重要 (v7.2 修复):** 使用相对路径 '../' 返回上一级目录。
-// 此路径假定此文件位于 'js/' 文件夹中，而 coolprop.js 位于根目录。
-// !! 此应用必须通过本地 Web 服务器 (如 http-server) 运行才能加载模块 !!
+// 使用 '../' 从 js/ 目录返回到根目录来查找 coolprop.js
 import Module from '../coolprop.js';
 
 // 1. 异步加载函数
@@ -18,11 +15,18 @@ import Module from '../coolprop.js';
  */
 export async function loadCoolProp() {
     try {
-        const CP = await Module();
+        const moduleConfig = {
+            locateFile: (path, prefix) => {
+                if (path.endsWith('.wasm')) {
+                    return 'coolprop.wasm';
+                }
+                return prefix + path;
+            }
+        };
+        const CP = await Module(moduleConfig);
         return CP;
     } catch (err) {
         console.error("CoolProp WASM 加载失败:", err);
-        // 将错误抛出，由 main.js 捕获
         throw new Error(`CoolProp.js 或 CoolProp.wasm 加载失败。请确保它们位于根目录，并通过 Web 服务器访问。 (${err.message})`);
     }
 }
@@ -30,11 +34,12 @@ export async function loadCoolProp() {
 
 // 2. 公共的流体信息更新函数
 
+// [关键修复] 重新添加 fluidInfoData 对象
 const fluidInfoData = {
     'R134a':        { gwp: 1430, odp: 0,    safety: 'A1' },
     'R245fa':       { gwp: 1030, odp: 0,    safety: 'B1' },
     'R1233zd(E)':   { gwp: 1,    odp: 0,    safety: 'A1' },
-    'R1234ze(E)':   { gwp: '<1', odp: 0,    safety: 'A2L' },
+    'R1234ze(Z)':   { gwp: '<1', odp: 0,    safety: 'A2L' }, // R1234ze(E) is more common, but Z is also used.
     'R123':         { gwp: 77,   odp: 0.012, safety: 'B1' },
     'R22':          { gwp: 1810, odp: 0.034, safety: 'A1' },
     'R410A':        { gwp: 2088, odp: 0,    safety: 'A1' },
@@ -70,7 +75,7 @@ const fluidInfoData = {
  * 更新流体信息框
  * @param {HTMLSelectElement} selectElement - 下拉菜单元素
  * @param {HTMLPreElement} infoElement - <pre> 元素
- * @param {object} CP - CoolProp 实例
+ * @param {object} CP - CoolProp 实例 (作为参数传入)
  */
 export function updateFluidInfo(selectElement, infoElement, CP) {
     if (!CP) {
@@ -80,6 +85,12 @@ export function updateFluidInfo(selectElement, infoElement, CP) {
     
     const fluid = selectElement.value;
     const info = fluidInfoData[fluid] || fluidInfoData['default'];
+    
+    // 增加一个对 info 对象的检查，以防万一
+    if (!info) {
+        infoElement.textContent = `--- 未找到工质 ${fluid} 的 GWP/ODP 信息。 ---`;
+        return;
+    }
     
     try {
         if (fluid === 'Water' && (selectElement.id === 'fluid_m4' || selectElement.id === 'fluid_m5')) {

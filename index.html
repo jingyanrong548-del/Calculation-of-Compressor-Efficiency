@@ -140,7 +140,42 @@
                                     <span class="text-xs text-gray-500">单位: °C</span>
                                 </div>
                             </div>
+
+                            <!-- [新增] 动态效率模型 -->
+                            <div class="input-group bg-gray-50 p-4 rounded-md shadow-sm mt-4">
+                                <div class="flex items-center">
+                                    <input id="enable_dynamic_eff_m1" name="enable_dynamic_eff_m1" type="checkbox" class="h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                                    <label for="enable_dynamic_eff_m1" class="ml-3 block text-md font-medium text-gray-800">启用动态效率模型</label>
+                                </div>
+                                <div id="dynamic-eff-inputs-m1" class="mt-4" style="display: none;">
+                                    <div class="grid grid-cols-2 gap-x-4">
+                                        <div class="input-group">
+                                            <label for="pr_design_m1" class="block text-sm font-medium text-gray-700">设计压比 (PR_design) <div class="tooltip">?<span class="tooltiptext">等熵效率达到峰值时的压比。</span></div></label>
+                                            <input type="number" id="pr_design_m1" name="pr_design_m1" value="3.0" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                        </div>
+                                        <div class="input-group">
+                                            <label for="clearance_ratio_m1" class="block text-sm font-medium text-gray-700">余隙容积比 (c) <div class="tooltip">?<span class="tooltiptext">用于动态计算容积效率。典型值: 螺杆(3-7%), 活塞(5-10%)。</span></div></label>
+                                            <input type="number" id="clearance_ratio_m1" name="clearance_ratio_m1" value="5.0" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                            <span class="text-xs text-gray-500">单位: %</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <hr class="my-4">
+
                             <div class="input-group mt-4">
+                                <label for="eff_selector_m1" class="block text-sm font-medium text-gray-700">压缩机类型/效率等级</label>
+                                <select id="eff_selector_m1" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                                    <option value="">-- 手动输入 --</option>
+                                    <option value="75,95">小型涡旋机 (&lt;50kW)</option>
+                                    <option value="80,96">中大型涡旋机 (&gt;50kW)</option>
+                                    <option value="78,92">无油螺杆机 (标准型)</option>
+                                    <option value="83,94">无油螺杆机 (高效型)</option>
+                                    <option value="72,98">往复式/活塞机</option>
+                                </select>
+                            </div>
+                            
+                            <div class="input-group">
                                 <label for="eff_isen_m1" class="block text-sm font-medium text-gray-700">等熵效率 (Eff_is)</label>
                                 <input type="number" id="eff_isen_m1" name="eff_isen_m1" value="80" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
                                 <span class="text-xs text-gray-500">单位: %</span>
@@ -155,7 +190,13 @@
                                     <span class="text-xs text-gray-500">单位: %</span>
                                 </div>
                                 <div class="input-group">
-                                    <label for="motor_eff_m1" class="block text-sm font-medium text-gray-700">电机效率 (Eff_motor)</label>
+                                    <label for="motor_eff_selector_m1" class="block text-sm font-medium text-gray-700">电机效率等级</label>
+                                    <select id="motor_eff_selector_m1" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
+                                        <option value="">-- 手动输入 --</option>
+                                        <option value="95">IE3 (高效)</option>
+                                        <option value="97">IE4 (超高效)</option>
+                                    </select>
+                                    <label for="motor_eff_m1" class="block text-sm font-medium text-gray-700 mt-2">电机效率 (Eff_motor)</label>
                                     <input type="number" id="motor_eff_m1" name="motor_eff_m1" value="95" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500">
                                     <span class="text-xs text-gray-500">单位: %</span>
                                 </div>
@@ -309,24 +350,52 @@
                                     <input type="number" id="p_out_m2" name="p_out_m2" value="8.0" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
                                     <span class="text-xs text-gray-500">单位: bar (a)</span>
                                 </div>
-                                <div class="input-group">
-                                    <label for="eff_isen_m2" class="block text-sm font-medium text-gray-700">等熵效率 (Eff_is)</label>
-                                    <input type="number" id="eff_isen_m2" name="eff_isen_m2" value="80" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
-                                    <span class="text-xs text-gray-500">单位: %</span>
+                                <div>
+                                    <!-- [新增] 动态效率模型 -->
+                                    <div class="input-group bg-gray-50 p-4 rounded-md shadow-sm">
+                                        <div class="flex items-center">
+                                            <input id="enable_dynamic_eff_m2" name="enable_dynamic_eff_m2" type="checkbox" class="h-5 w-5 text-cyan-600 border-gray-300 rounded focus:ring-cyan-500">
+                                            <label for="enable_dynamic_eff_m2" class="ml-3 block text-md font-medium text-gray-800">启用动态效率模型</label>
+                                        </div>
+                                        <div id="dynamic-eff-inputs-m2" class="mt-4" style="display: none;">
+                                            <div class="input-group">
+                                                <label for="pr_design_m2" class="block text-sm font-medium text-gray-700">设计压比 (PR_design) <div class="tooltip">?<span class="tooltiptext">等熵效率达到峰值时的压比。</span></div></label>
+                                                <input type="number" id="pr_design_m2" name="pr_design_m2" value="3.5" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
+
+                            <hr class="my-4">
+
+                            <div class="input-group">
+                                <label for="eff_selector_m2" class="block text-sm font-medium text-gray-700">压缩机类型/工况</label>
+                                <select id="eff_selector_m2" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
+                                    <option value="">-- 手动输入 --</option>
+                                    <option value="70">小型无油活塞机 (低压)</option>
+                                    <option value="75">大型无油活塞机 (高压)</option>
+                                    <option value="82">单级无油螺杆 (压比 &lt; 3.5)</option>
+                                    <option value="78">单级无油螺杆 (压比 &gt; 3.5)</option>
+                                    <option value="86">两级无油螺杆 (带中冷)</option>
+                                    <option value="90">微油螺杆 (水润滑/喷油)</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label for="eff_isen_m2" class="block text-sm font-medium text-gray-700">等熵效率 (Eff_is)</label>
+                                <input type="number" id="eff_isen_m2" name="eff_isen_m2" value="80" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
+                                <span class="text-xs text-gray-500">单位: %</span>
+                            </div>
                             
-                            <div class="grid grid-cols-2 gap-x-4">
-                                <div class="input-group">
-                                    <label for="eff_iso_m2" class="block text-sm font-medium text-gray-700">
-                                        等温效率 (Eff_iso)
-                                        <div class="tooltip">?
-                                            <span class="tooltiptext">可选。如果输入大于0，将覆盖等熵效率计算排气温度，用于评估冷却效果 (如喷油机)。</span>
-                                        </div>
-                                    </label>
-                                    <input type="number" id="eff_iso_m2" name="eff_iso_m2" value="0" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
-                                    <span class="text-xs text-gray-500">单位: % (0 = 不使用)</span>
-                                </div>
+                            <div class="input-group">
+                                <label for="eff_iso_m2" class="block text-sm font-medium text-gray-700">
+                                    等温效率 (Eff_iso)
+                                    <div class="tooltip">?
+                                        <span class="tooltiptext">可选。如果输入大于0，将覆盖等熵效率计算排气温度，用于评估冷却效果 (如喷油机)。</span>
+                                    </div>
+                                </label>
+                                <input type="number" id="eff_iso_m2" name="eff_iso_m2" value="0" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
+                                <span class="text-xs text-gray-500">单位: % (0 = 不使用)</span>
                             </div>
                         </div>
                         
@@ -458,13 +527,43 @@
                                     <input type="number" id="p_out_m3" name="p_out_m3" value="8.0" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
                                     <span class="text-xs text-gray-500">单位: bar (a)</span>
                                 </div>
-                                <div class="input-group">
-                                    <label for="eff_isen_m3" class="block text-sm font-medium text-gray-700">等熵效率 (Eff_is)</label>
-                                    <input type="number" id="eff_isen_m3" name="eff_isen_m3" value="80" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
-                                    <span class="text-xs text-gray-500">单位: %</span>
+                                <div>
+                                    <!-- [新增] 动态效率模型 -->
+                                    <div class="input-group bg-gray-50 p-4 rounded-md shadow-sm">
+                                        <div class="flex items-center">
+                                            <input id="enable_dynamic_eff_m3" name="enable_dynamic_eff_m3" type="checkbox" class="h-5 w-5 text-cyan-600 border-gray-300 rounded focus:ring-cyan-500">
+                                            <label for="enable_dynamic_eff_m3" class="ml-3 block text-md font-medium text-gray-800">启用动态效率模型</label>
+                                        </div>
+                                        <div id="dynamic-eff-inputs-m3" class="mt-4" style="display: none;">
+                                            <div class="input-group">
+                                                <label for="pr_design_m3" class="block text-sm font-medium text-gray-700">设计压比 (PR_design) <div class="tooltip">?<span class="tooltiptext">等熵效率达到峰值时的压比。</span></div></label>
+                                                <input type="number" id="pr_design_m3" name="pr_design_m3" value="3.5" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             
+                            <hr class="my-4">
+                            
+                            <div class="input-group">
+                                <label for="eff_selector_m3" class="block text-sm font-medium text-gray-700">压缩机类型/工况</label>
+                                <select id="eff_selector_m3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
+                                    <option value="">-- 手动输入 --</option>
+                                    <option value="70">小型无油活塞机 (低压)</option>
+                                    <option value="75">大型无油活塞机 (高压)</option>
+                                    <option value="82">单级无油螺杆 (压比 &lt; 3.5)</option>
+                                    <option value="78">单级无油螺杆 (压比 &gt; 3.5)</option>
+                                    <option value="86">两级无油螺杆 (带中冷)</option>
+                                    <option value="90">微油螺杆 (水润滑/喷油)</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label for="eff_isen_m3" class="block text-sm font-medium text-gray-700">等熵效率 (Eff_is)</label>
+                                <input type="number" id="eff_isen_m3" name="eff_isen_m3" value="80" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-cyan-500 focus:border-cyan-500">
+                                <span class="text-xs text-gray-500">单位: %</span>
+                            </div>
+
                             <hr class="my-4">
                             <div class="input-group">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">冷却方式</label>
@@ -613,6 +712,28 @@
                             </div>
 
                             <hr class="my-4">
+
+                            <!-- [新增] 动态效率模型 -->
+                            <div class="input-group bg-gray-50 p-4 rounded-md shadow-sm">
+                                <div class="flex items-center">
+                                    <input id="enable_dynamic_eff_m4" name="enable_dynamic_eff_m4" type="checkbox" class="h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
+                                    <label for="enable_dynamic_eff_m4" class="ml-3 block text-md font-medium text-gray-800">启用动态效率模型</label>
+                                </div>
+                                <div id="dynamic-eff-inputs-m4" class="mt-4" style="display: none;">
+                                    <div class="grid grid-cols-2 gap-x-4">
+                                        <div class="input-group">
+                                            <label for="pr_design_m4" class="block text-sm font-medium text-gray-700">设计压比 (PR_design) <div class="tooltip">?<span class="tooltiptext">等熵效率达到峰值时的压比。</span></div></label>
+                                            <input type="number" id="pr_design_m4" name="pr_design_m4" value="1.8" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                        </div>
+                                        <div class="input-group">
+                                            <label for="clearance_ratio_m4" class="block text-sm font-medium text-gray-700">余隙容积比 (c) <div class="tooltip">?<span class="tooltiptext">用于动态计算容积效率。典型值: 螺杆(3-7%), 罗茨(0-2%)。</span></div></label>
+                                            <input type="number" id="clearance_ratio_m4" name="clearance_ratio_m4" value="4.0" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                            <span class="text-xs text-gray-500">单位: %</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <hr class="my-4">
                             
                             <div class="input-group">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">流量模式</label>
@@ -666,7 +787,14 @@
                             <hr class="my-4">
                             <div class="grid grid-cols-2 gap-x-4">
                                 <div class="input-group">
-                                    <label for="eff_isen_m4" class="block text-sm font-medium text-gray-700">等熵效率 (Eff_is)</label>
+                                    <label for="eff_selector_m4" class="block text-sm font-medium text-gray-700">MVR 压缩机类型</label>
+                                    <select id="eff_selector_m4" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500">
+                                        <option value="">-- 手动输入 --</option>
+                                        <option value="68,90">普通罗茨风机</option>
+                                        <option value="75,92">高效三叶罗茨风机</option>
+                                        <option value="82,94">大型无油螺杆 (MVR专用)</option>
+                                    </select>
+                                    <label for="eff_isen_m4" class="block text-sm font-medium text-gray-700 mt-2">等熵效率 (Eff_is)</label>
                                     <input type="number" id="eff_isen_m4" name="eff_isen_m4" value="80" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500">
                                     <span class="text-xs text-gray-500">单位: %</span>
                                 </div>
@@ -781,6 +909,21 @@
                             </div>
 
                             <hr class="my-4">
+
+                             <!-- [新增] 动态效率模型 -->
+                             <div class="input-group bg-gray-50 p-4 rounded-md shadow-sm">
+                                <div class="flex items-center">
+                                    <input id="enable_dynamic_eff_m5" name="enable_dynamic_eff_m5" type="checkbox" class="h-5 w-5 text-teal-600 border-gray-300 rounded focus:ring-teal-500">
+                                    <label for="enable_dynamic_eff_m5" class="ml-3 block text-md font-medium text-gray-800">启用动态效率模型</label>
+                                </div>
+                                <div id="dynamic-eff-inputs-m5" class="mt-4" style="display: none;">
+                                    <div class="input-group">
+                                        <label for="pr_design_m5" class="block text-sm font-medium text-gray-700">设计压比 (PR_design) <div class="tooltip">?<span class="tooltiptext">多变效率达到峰值时的压比。</span></div></label>
+                                        <input type="number" id="pr_design_m5" name="pr_design_m5" value="1.8" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                                    </div>
+                                </div>
+                            </div>
+                            <hr class="my-4">
                             
                             <div class="input-group">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">流量模式</label>
@@ -812,7 +955,15 @@
 
                             <div class="grid grid-cols-2 gap-x-4">
                                 <div class="input-group">
-                                    <label for="eff_poly_m5" class="block text-sm font-medium text-gray-700">多变效率 (Eff_poly)</label>
+                                    <label for="eff_selector_m5" class="block text-sm font-medium text-gray-700">透平压缩机效率等级</label>
+                                    <select id="eff_selector_m5" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500">
+                                        <option value="">-- 手动输入 --</option>
+                                        <option value="78">标准单级离心机</option>
+                                        <option value="83">高效单级离心机 (优化叶轮)</option>
+                                        <option value="85">多级离心机</option>
+                                        <option value="82">高速齿轮增速一体机</option>
+                                    </select>
+                                    <label for="eff_poly_m5" class="block text-sm font-medium text-gray-700 mt-2">多变效率 (Eff_poly)</label>
                                     <input type="number" id="eff_poly_m5" name="eff_poly_m5" value="80" step="any" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500">
                                     <span class="text-xs text-gray-500">单位: %</span>
                                 </div>

@@ -2,6 +2,16 @@
 .input-group {
     margin-bottom: 0.75rem; /* 12px */
 }
+
+/* [修改 v7.4] 减小部分输入组的下边距，让选型菜单和输入框更紧凑 */
+.input-group select + label {
+    margin-top: 0.5rem; /* 8px */
+}
+.input-group select + input {
+    margin-top: 0.25rem; /* 4px */
+}
+
+
 input[type="radio"] {
     margin-top: -0.1rem;
 }
@@ -81,4 +91,14 @@ input[type="radio"].hidden-radio:checked + .radio-label {
     color: #0f766e; /* teal-700 */
     font-weight: 600;
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+/* [新增 v7.4] 动态效率模型参数区域的输入框样式微调 */
+#dynamic-eff-inputs-m1 input,
+#dynamic-eff-inputs-m2 input,
+#dynamic-eff-inputs-m3 input,
+#dynamic-eff-inputs-m4 input,
+#dynamic-eff-inputs-m5 input {
+    background-color: #f8fafc; /* cool-gray-50 */
+    border-color: #94a3b8; /* cool-gray-400 */
 }

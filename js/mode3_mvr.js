@@ -1,8 +1,9 @@
 // =====================================================================
 // mode3_mvr.js: 模式四 (MVR 容积式计算) 模块
-// 版本: v7.2 (最终修复版)
+// 版本: v7.4 (引入动态效率模型)
 // 职责: 1. 作为独立的模式四运行。
-//        2. 更新所有 DOM ID 和初始化函数名以匹配 v7.0 结构。
+//        2. 新增效率选型下拉菜单的事件处理逻辑。
+//        3. 新增基于压比的动态效率模型计算逻辑。
 // =====================================================================
 
 import { updateFluidInfo } from './coolprop_loader.js';
@@ -59,13 +60,10 @@ async function calculateMode4() {
             const flow_mode = formData.get('flow_mode_m4');
             const rpm = parseFloat(formData.get('rpm_m4'));
             const vol_disp_cm3 = parseFloat(formData.get('vol_disp_m4'));
-            const vol_eff = parseFloat(formData.get('vol_eff_m4')) / 100.0;
             const mass_flow_kgs = parseFloat(formData.get('mass_flow_m4'));
             const vol_flow_m3h = parseFloat(formData.get('vol_flow_m4'));
             
-            const eff_isen = parseFloat(formData.get('eff_isen_m4')) / 100.0;
             const T_water_in_C = parseFloat(formData.get('T_water_in_m4'));
-
             const T_water_in_K = T_water_in_C + 273.15;
             const vol_disp_m3 = vol_disp_cm3 / 1e6;
 
@@ -100,10 +98,38 @@ async function calculateMode4() {
             const T_sat_out_K = T_sat_in_K + delta_T_sat;
             const p_out_Pa = CP.PropsSI('P', 'T', T_sat_out_K, 'Q', 1, fluid);
 
+            // [修改] 动态效率模型计算
+            let eff_isen_final = parseFloat(formData.get('eff_isen_m4')) / 100.0;
+            let vol_eff_final = parseFloat(formData.get('vol_eff_m4')) / 100.0;
+            let dynamicModelNotes = "效率模型: 静态 (手动输入)";
+            
+            const isDynamic = formData.get('enable_dynamic_eff_m4') === 'on';
+            if (isDynamic) {
+                const pr_design = parseFloat(formData.get('pr_design_m4'));
+                const clearance_ratio = parseFloat(formData.get('clearance_ratio_m4')) / 100.0;
+                const pr_actual = p_out_Pa / p_in_Pa;
+                
+                // 1. 修正等熵效率
+                const SENSITIVITY_A = 0.03;
+                const isen_correction_factor = 1 - SENSITIVITY_A * Math.pow(pr_actual - pr_design, 2);
+                const eff_isen_base = parseFloat(formData.get('eff_isen_m4')) / 100.0;
+                eff_isen_final = Math.max(0, eff_isen_base * isen_correction_factor);
+
+                // 2. 修正容积效率
+                const cpmass = CP.PropsSI('Cpmass', 'P', p_in_Pa, 'T', T_in_K, fluid);
+                const cvmass = CP.PropsSI('Cvmass', 'P', p_in_Pa, 'T', T_in_K, fluid);
+                const k = cpmass / cvmass;
+                vol_eff_final = 1 - clearance_ratio * (Math.pow(pr_actual, 1 / k) - 1);
+                vol_eff_final = Math.max(0, vol_eff_final);
+                
+                dynamicModelNotes = `效率模型: 动态 (设计压比=${pr_design.toFixed(2)}, 余隙比=${(clearance_ratio*100).toFixed(1)}%)`;
+            }
+
+
             const H_out_is = CP.PropsSI('H', 'P', p_out_Pa, 'S', S_in, fluid);
             const W_is = H_out_is - H_in;
 
-            const W_real_dry = W_is / eff_isen;
+            const W_real_dry = W_is / eff_isen_final;
             const H_out_dry = H_in + W_real_dry;
 
             let m_flow_in, V_flow_in_s;
@@ -111,9 +137,9 @@ async function calculateMode4() {
 
             if (flow_mode === 'rpm') {
                 const V_flow_theo_s = (rpm / 60.0) * vol_disp_m3;
-                V_flow_in_s = V_flow_theo_s * vol_eff;
+                V_flow_in_s = V_flow_theo_s * vol_eff_final;
                 m_flow_in = V_flow_in_s * D_in;
-                flow_notes = `(基于 RPM: ${rpm}, 排量: ${vol_disp_cm3} cm³, 容效: ${(vol_eff * 100.0).toFixed(1)}%)`;
+                flow_notes = `(基于 RPM: ${rpm}, 排量: ${vol_disp_cm3} cm³)`;
             } else if (flow_mode === 'mass') {
                 m_flow_in = mass_flow_kgs;
                 V_flow_in_s = m_flow_in / D_in;
@@ -156,6 +182,7 @@ async function calculateMode4() {
 ========= 模式四 (MVR 容积式) 计算报告 =========
 工质: ${fluid}
 流量模式: ${flow_mode}
+${dynamicModelNotes}
 
 --- 1. 进口状态 (P, T) ---
 进口压力 (P_in):    ${p_in_bar.toFixed(3)} bar
@@ -172,7 +199,9 @@ async function calculateMode4() {
   - 出口饱和焓 (H_out_sat): ${(H_out_target / 1000.0).toFixed(2)} kJ/kg
 
 --- 3. 压缩过程 (干) ---
-等熵效率 (Eff_is):  ${(eff_isen * 100.0).toFixed(1)} %
+等熵效率 (Eff_is):  ${(eff_isen_final * 100.0).toFixed(1)} %
+容积效率 (Eff_vol):  ${(vol_eff_final * 100.0).toFixed(1)} %
+----------------------------------------
   - 理论等熵功 (W_is):   ${(W_is / 1000.0).toFixed(2)} kJ/kg
   - 实际干功 (W_dry):    ${(W_real_dry / 1000.0).toFixed(2)} kJ/kg
   - 干出口焓 (H_dry_out): ${(H_out_dry / 1000.0).toFixed(2)} kJ/kg
@@ -227,7 +256,7 @@ function printReportMode4() {
         </head><body>
             <h1>模式四 (MVR 容积式) 计算报告</h1>
             <pre>${lastMode4ResultText}</pre>
-            <footer><p>版本: v7.2</p><p>计算时间: ${new Date().toLocaleString()}</p></footer>
+            <footer><p>版本: v7.4</p><p>计算时间: ${new Date().toLocaleString()}</p></footer>
         </body></html>
     `;
     
@@ -279,6 +308,33 @@ export function initMode4(CP) {
     });
 
     printButtonM4.addEventListener('click', printReportMode4);
+
+    const effSelectorM4 = document.getElementById('eff_selector_m4');
+    const effIsenInputM4 = document.getElementById('eff_isen_m4');
+    const volEffInputM4 = document.getElementById('vol_eff_m4');
+    effSelectorM4.addEventListener('change', () => {
+        const selectedValue = effSelectorM4.value;
+        if (selectedValue) {
+            const [isen, vol] = selectedValue.split(',');
+            effIsenInputM4.value = isen;
+            volEffInputM4.value = vol;
+            effIsenInputM4.dispatchEvent(new Event('input'));
+            volEffInputM4.dispatchEvent(new Event('input'));
+        }
+    });
+
+    // [新增] 模式四动态效率模型UI逻辑
+    const dynamicEffCheckboxM4 = document.getElementById('enable_dynamic_eff_m4');
+    const dynamicEffInputsM4 = document.getElementById('dynamic-eff-inputs-m4');
+    const effIsenLabelM4 = document.querySelector('label[for="eff_isen_m4"]');
+    const volEffLabelM4 = document.querySelector('label[for="vol_eff_m4"]');
+    dynamicEffCheckboxM4.addEventListener('change', () => {
+        const isChecked = dynamicEffCheckboxM4.checked;
+        dynamicEffInputsM4.style.display = isChecked ? 'block' : 'none';
+        effIsenLabelM4.textContent = isChecked ? '基础等熵效率 (Eff_is)' : '等熵效率 (Eff_is)';
+        volEffLabelM4.textContent = isChecked ? '基础容积效率 (Eff_vol)' : '容积效率 (Eff_vol)';
+        setButtonStale4();
+    });
 
     console.log("Mode 4 (MVR Volumetric) initialized.");
 }

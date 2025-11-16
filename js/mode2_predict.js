@@ -1,8 +1,9 @@
 // =====================================================================
 // mode2_predict.js: 模式一 (热泵预测) 和 模式二 (气体预测) 模块
-// 版本: v7.2 (最终修复版)
-// 职责: 1. 实现模式一 (原2A, 热泵) 和 模式二 (原2B, 气体) 的计算逻辑。
-//        2. 使用统一的初始化函数 'initMode1_2' 并更新所有 DOM ID。
+// 版本: v7.6 (修复 CP_INSTANCE 作用域问题)
+// 职责: 1. 实现模式一和模式二的计算逻辑。
+//        2. 新增效率选型下拉菜单的事件处理。
+//        3. 新增基于压比的动态效率模型计算逻辑。
 // =====================================================================
 
 import { updateFluidInfo } from './coolprop_loader.js';
@@ -86,10 +87,33 @@ async function calculateMode1() {
                 p_out_bar = CP.PropsSI('P', 'T', T_cond_K_calc, 'Q', 1, fluid) / 1e5;
             }
 
-            const eff_isen = parseFloat(formData.get('eff_isen_m1')) / 100.0;
-            const vol_eff = parseFloat(formData.get('vol_eff_m1')) / 100.0;
+            let eff_isen_final = parseFloat(formData.get('eff_isen_m1')) / 100.0;
+            let vol_eff_final = parseFloat(formData.get('vol_eff_m1')) / 100.0;
             const motor_eff = parseFloat(formData.get('motor_eff_m1')) / 100.0;
+            let dynamicModelNotes = "效率模型: 静态 (手动输入)";
             
+            const isDynamic = formData.get('enable_dynamic_eff_m1') === 'on';
+            if (isDynamic) {
+                const pr_design = parseFloat(formData.get('pr_design_m1'));
+                const clearance_ratio = parseFloat(formData.get('clearance_ratio_m1')) / 100.0;
+                const pr_actual = p_out_bar / p_in_bar;
+
+                const SENSITIVITY_A = 0.03; 
+                const isen_correction_factor = 1 - SENSITIVITY_A * Math.pow(pr_actual - pr_design, 2);
+                const eff_isen_base = parseFloat(formData.get('eff_isen_m1')) / 100.0;
+                eff_isen_final = Math.max(0, eff_isen_base * isen_correction_factor);
+
+                const p_in_Pa_dyn = p_in_bar * 1e5;
+                const T_in_K_dyn = T_in_C + 273.15;
+                const cpmass = CP.PropsSI('Cpmass', 'P', p_in_Pa_dyn, 'T', T_in_K_dyn, fluid);
+                const cvmass = CP.PropsSI('Cvmass', 'P', p_in_Pa_dyn, 'T', T_in_K_dyn, fluid);
+                const k = cpmass / cvmass;
+                vol_eff_final = 1 - clearance_ratio * (Math.pow(pr_actual, 1 / k) - 1);
+                vol_eff_final = Math.max(0, vol_eff_final);
+                
+                dynamicModelNotes = `效率模型: 动态 (设计压比=${pr_design.toFixed(2)}, 余隙比=${(clearance_ratio*100).toFixed(1)}%)`;
+            }
+
             const flow_mode = formData.get('flow_mode_m1');
             const rpm = parseFloat(formData.get('rpm_m1'));
             const vol_disp_cm3 = parseFloat(formData.get('vol_disp_m1'));
@@ -115,13 +139,13 @@ async function calculateMode1() {
             const T_out_is_K = CP.PropsSI('T', 'P', p_out_Pa, 'S', S_in, fluid);
             const W_is = H_out_is - H_in;
 
-            const W_real = W_is / eff_isen;
+            const W_real = W_is / eff_isen_final;
             const H_out_real = H_in + W_real;
             const T_out_real_K = CP.PropsSI('T', 'P', p_out_Pa, 'H', H_out_real, fluid);
 
             let m_flow, V_flow_in;
             if (flow_mode === 'rpm') {
-                V_flow_in = (rpm / 60.0) * vol_disp_m3 * vol_eff;
+                V_flow_in = (rpm / 60.0) * vol_disp_m3 * vol_eff_final;
                 m_flow = V_flow_in * D_in;
             } else if (flow_mode === 'mass') {
                 m_flow = mass_flow_kgs;
@@ -160,6 +184,7 @@ async function calculateMode1() {
             let resultText = `
 ========= 模式一 (热泵预测) 计算报告 =========
 工质: ${fluid}
+${dynamicModelNotes}
 
 --- 1. 进口/出口工况 ---
 蒸发温度 (T_evap): ${T_evap_C.toFixed(2)} °C
@@ -176,7 +201,7 @@ async function calculateMode1() {
 
 --- 3. 压缩过程 (计算值) ---
 出口压力 (P_out):   ${p_out_bar.toFixed(3)} bar
-等熵效率 (Eff_is):  ${(eff_isen * 100).toFixed(1)} %
+等熵效率 (Eff_is):  ${(eff_isen_final * 100).toFixed(1)} %
 ----------------------------------------
   - 理论等熵功 (W_is):   ${(W_is / 1000.0).toFixed(2)} kJ/kg
   - 理论排气温度 (T_out_is): ${T_out_is_C.toFixed(2)} °C
@@ -188,7 +213,7 @@ async function calculateMode1() {
 --- 4. 流量与功率 ---
 质量流量 (M_flow):  ${m_flow.toFixed(4)} kg/s
 进口体积流量 (V_in): ${V_flow_in.toFixed(5)} m³/s (${(V_flow_in * 3600).toFixed(2)} m³/h)
-(基于 容积效率: ${(vol_eff * 100).toFixed(1)}% 和 电机效率: ${(motor_eff * 100).toFixed(1)}%)
+(基于 容积效率: ${(vol_eff_final * 100).toFixed(1)}% 和 电机效率: ${(motor_eff * 100).toFixed(1)}%)
 ----------------------------------------
   - 压缩机轴功率 (P_shaft): ${Power_shaft.toFixed(2)} kW
   - 电机输入功率 (P_motor): ${Power_motor.toFixed(2)} kW
@@ -239,7 +264,7 @@ function printReportMode1() {
         </head><body>
             <h1>模式一 (热泵预测) 计算报告</h1>
             <pre>${lastMode1ResultText}</pre>
-            <footer><p>版本: v7.2</p><p>计算时间: ${new Date().toLocaleString()}</p></footer>
+            <footer><p>版本: v7.6</p><p>计算时间: ${new Date().toLocaleString()}</p></footer>
         </body></html>
     `;
     const printContainer = document.createElement('div');
@@ -287,9 +312,22 @@ async function calculateMode2() {
             const p_in_bar = parseFloat(formData.get('p_in_m2'));
             const T_in_C = parseFloat(formData.get('T_in_m2'));
             const p_out_bar = parseFloat(formData.get('p_out_m2'));
-            const eff_isen = parseFloat(formData.get('eff_isen_m2')) / 100.0;
             const eff_iso = parseFloat(formData.get('eff_iso_m2')) / 100.0;
             
+            let eff_isen_final = parseFloat(formData.get('eff_isen_m2')) / 100.0;
+            let dynamicModelNotes = "效率模型: 静态 (手动输入)";
+            
+            const isDynamic = formData.get('enable_dynamic_eff_m2') === 'on';
+            if (isDynamic) {
+                const pr_design = parseFloat(formData.get('pr_design_m2'));
+                const pr_actual = p_out_bar / p_in_bar;
+                const SENSITIVITY_A = 0.03;
+                const isen_correction_factor = 1 - SENSITIVITY_A * Math.pow(pr_actual - pr_design, 2);
+                const eff_isen_base = parseFloat(formData.get('eff_isen_m2')) / 100.0;
+                eff_isen_final = Math.max(0, eff_isen_base * isen_correction_factor);
+                dynamicModelNotes = `效率模型: 动态 (设计压比=${pr_design.toFixed(2)})`;
+            }
+
             const flow_mode = formData.get('flow_mode_m2');
             const rpm = parseFloat(formData.get('rpm_m2'));
             const vol_disp_cm3 = parseFloat(formData.get('vol_disp_m2'));
@@ -320,15 +358,15 @@ async function calculateMode2() {
             const W_iso = (H_out_iso - H_in) - T_in_K * (S_out_iso - S_in);
 
             let T_out_real_K, H_out_real, W_real;
-            let eff_notes = `(基于等熵效率 ${eff_isen * 100}%)`;
+            let eff_notes = `(基于等熵效率 ${(eff_isen_final * 100).toFixed(1)}%)`;
 
             if (eff_iso > 0.01) {
                 W_real = W_iso / eff_iso;
-                H_out_real = H_in + (W_is / eff_isen);
+                H_out_real = H_in + (W_is / eff_isen_final);
                 T_out_real_K = CP.PropsSI('T', 'P', p_out_Pa, 'H', H_out_real, fluid);
                 eff_notes = `(基于等温效率 ${eff_iso * 100}%)`;
             } else {
-                W_real = W_is / eff_isen;
+                W_real = W_is / eff_isen_final;
                 H_out_real = H_in + W_real;
                 T_out_real_K = CP.PropsSI('T', 'P', p_out_Pa, 'H', H_out_real, fluid);
             }
@@ -363,6 +401,7 @@ async function calculateMode2() {
             let resultText = `
 ========= 模式二 (气体预测) 计算报告 =========
 工质: ${fluid}
+${dynamicModelNotes}
 效率基准: ${eff_notes}
 
 --- 1. 进口状态 ---
@@ -424,7 +463,7 @@ function printReportMode2() {
         </head><body>
             <h1>模式二 (气体预测) 计算报告</h1>
             <pre>${lastMode2ResultText}</pre>
-            <footer><p>版本: v7.2</p><p>计算时间: ${new Date().toLocaleString()}</p></footer>
+            <footer><p>版本: v7.6</p><p>计算时间: ${new Date().toLocaleString()}</p></footer>
         </body></html>
     `;
     const printContainer = document.createElement('div');
@@ -463,6 +502,49 @@ export function initMode1_2(CP) {
             setButtonStale1();
         });
         printButtonM1.addEventListener('click', printReportMode1);
+
+        const effSelectorM1 = document.getElementById('eff_selector_m1');
+        const effIsenInputM1 = document.getElementById('eff_isen_m1');
+        const volEffInputM1 = document.getElementById('vol_eff_m1');
+        if (effSelectorM1 && effIsenInputM1 && volEffInputM1) {
+            effSelectorM1.addEventListener('change', () => {
+                const selectedValue = effSelectorM1.value;
+                if (selectedValue) {
+                    const [isen, vol] = selectedValue.split(',');
+                    effIsenInputM1.value = isen;
+                    volEffInputM1.value = vol;
+                    effIsenInputM1.dispatchEvent(new Event('input'));
+                    volEffInputM1.dispatchEvent(new Event('input'));
+                }
+            });
+        }
+
+        const motorEffSelectorM1 = document.getElementById('motor_eff_selector_m1');
+        const motorEffInputM1 = document.getElementById('motor_eff_m1');
+        if (motorEffSelectorM1 && motorEffInputM1) {
+            motorEffSelectorM1.addEventListener('change', () => {
+                const selectedValue = motorEffSelectorM1.value;
+                if(selectedValue){
+                    motorEffInputM1.value = selectedValue;
+                    motorEffInputM1.dispatchEvent(new Event('input'));
+                }
+            });
+        }
+
+        const dynamicEffCheckboxM1 = document.getElementById('enable_dynamic_eff_m1');
+        const dynamicEffInputsM1 = document.getElementById('dynamic-eff-inputs-m1');
+        const effIsenLabelM1 = document.querySelector('label[for="eff_isen_m1"]');
+        const volEffLabelM1 = document.querySelector('label[for="vol_eff_m1"]');
+        if (dynamicEffCheckboxM1 && dynamicEffInputsM1 && effIsenLabelM1 && volEffLabelM1) {
+            dynamicEffCheckboxM1.addEventListener('change', () => {
+                const isChecked = dynamicEffCheckboxM1.checked;
+                dynamicEffInputsM1.style.display = isChecked ? 'block' : 'none';
+                effIsenLabelM1.textContent = isChecked ? '基础等熵效率 (Eff_is)' : '等熵效率 (Eff_is)';
+                volEffLabelM1.textContent = isChecked ? '基础容积效率 (Eff_vol)' : '容积效率 (Eff_vol)';
+                setButtonStale1();
+            });
+        }
+
         console.log("Mode 1 (Heat Pump) initialized.");
     }
     
@@ -487,6 +569,31 @@ export function initMode1_2(CP) {
             setButtonStale2();
         });
         printButtonM2.addEventListener('click', printReportMode2);
+
+        const effSelectorM2 = document.getElementById('eff_selector_m2');
+        const effIsenInputM2 = document.getElementById('eff_isen_m2');
+        if (effSelectorM2 && effIsenInputM2) {
+            effSelectorM2.addEventListener('change', () => {
+                const selectedValue = effSelectorM2.value;
+                if(selectedValue){
+                    effIsenInputM2.value = selectedValue;
+                    effIsenInputM2.dispatchEvent(new Event('input'));
+                }
+            });
+        }
+        
+        const dynamicEffCheckboxM2 = document.getElementById('enable_dynamic_eff_m2');
+        const dynamicEffInputsM2 = document.getElementById('dynamic-eff-inputs-m2');
+        const effIsenLabelM2 = document.querySelector('label[for="eff_isen_m2"]');
+        if (dynamicEffCheckboxM2 && dynamicEffInputsM2 && effIsenLabelM2) {
+            dynamicEffCheckboxM2.addEventListener('change', () => {
+                const isChecked = dynamicEffCheckboxM2.checked;
+                dynamicEffInputsM2.style.display = isChecked ? 'block' : 'none';
+                effIsenLabelM2.textContent = isChecked ? '基础等熵效率 (Eff_is)' : '等熵效率 (Eff_is)';
+                setButtonStale2();
+            });
+        }
+        
         console.log("Mode 2 (Gas) initialized.");
     }
 }

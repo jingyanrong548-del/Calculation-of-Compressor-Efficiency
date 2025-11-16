@@ -1,8 +1,9 @@
 // =====================================================================
 // mode4_turbo.js: 模式五 (MVR 透平式计算) 模块
-// 版本: v7.2 (最终修复版)
+// 版本: v7.4 (引入动态效率模型)
 // 职责: 1. 作为独立的模式五运行。
-//        2. 更新所有 DOM ID 和初始化函数名以匹配 v7.0 结构。
+//        2. 新增效率选型下拉菜单的事件处理逻辑。
+//        3. 新增基于压比的动态效率模型计算逻辑。
 // =====================================================================
 
 import { updateFluidInfo } from './coolprop_loader.js';
@@ -59,10 +60,8 @@ async function calculateMode5() {
             const flow_mode = formData.get('flow_mode_m5');
             const mass_flow_kgs = parseFloat(formData.get('mass_flow_m5'));
             const vol_flow_m3h = parseFloat(formData.get('vol_flow_m5'));
-
-            const eff_poly = parseFloat(formData.get('eff_poly_m5')) / 100.0;
+            
             const T_water_in_C = parseFloat(formData.get('T_water_in_m5'));
-
             const T_water_in_K = T_water_in_C + 273.15;
 
             let p_in_Pa, T_in_K, H_in, S_in, D_in, T_sat_in_K;
@@ -96,14 +95,29 @@ async function calculateMode5() {
             const T_sat_out_K = T_sat_in_K + delta_T_sat;
             const p_out_Pa = CP.PropsSI('P', 'T', T_sat_out_K, 'Q', 1, fluid);
 
+            // [修改] 动态效率模型计算
+            let eff_poly_final = parseFloat(formData.get('eff_poly_m5')) / 100.0;
+            let dynamicModelNotes = "效率模型: 静态 (手动输入)";
+
+            const isDynamic = formData.get('enable_dynamic_eff_m5') === 'on';
+            if (isDynamic) {
+                const pr_design = parseFloat(formData.get('pr_design_m5'));
+                const pr_actual = p_out_Pa / p_in_Pa;
+                const SENSITIVITY_A = 0.03;
+                const poly_correction_factor = 1 - SENSITIVITY_A * Math.pow(pr_actual - pr_design, 2);
+                const eff_poly_base = parseFloat(formData.get('eff_poly_m5')) / 100.0;
+                eff_poly_final = Math.max(0, eff_poly_base * poly_correction_factor);
+                dynamicModelNotes = `效率模型: 动态 (设计压比=${pr_design.toFixed(2)})`;
+            }
+
             const v_in = 1.0 / D_in;
             const k = CP.PropsSI('Cpmass', 'P', p_in_Pa, 'S', S_in, fluid) / CP.PropsSI('Cvmass', 'P', p_in_Pa, 'S', S_in, fluid);
-            const n_poly = 1.0 / (1.0 - (k - 1) / (k * eff_poly));
+            const n_poly = 1.0 / (1.0 - (k - 1) / (k * eff_poly_final));
             
             const pr = p_out_Pa / p_in_Pa;
             const W_poly = (n_poly / (n_poly - 1)) * p_in_Pa * v_in * (Math.pow(pr, (n_poly - 1) / n_poly) - 1);
 
-            const W_real_dry = W_poly / eff_poly;
+            const W_real_dry = W_poly / eff_poly_final;
             const H_out_dry = H_in + W_real_dry;
             const T_out_dry_K = CP.PropsSI('T', 'P', p_out_Pa, 'H', H_out_dry, fluid);
 
@@ -144,6 +158,7 @@ async function calculateMode5() {
 ========= 模式五 (MVR 透平式) 计算报告 =========
 工质: ${fluid}
 流量模式: ${flow_mode}
+${dynamicModelNotes}
 
 --- 1. 进口状态 (P, T) ---
 进口压力 (P_in):    ${p_in_bar.toFixed(3)} bar
@@ -160,7 +175,7 @@ async function calculateMode5() {
   - 出口饱和焓 (H_out_sat): ${(H_out_target / 1000.0).toFixed(2)} kJ/kg
 
 --- 3. 压缩过程 (干) ---
-多变效率 (Eff_poly):  ${(eff_poly * 100.0).toFixed(1)} %
+多变效率 (Eff_poly):  ${(eff_poly_final * 100.0).toFixed(1)} %
   - 多变指数 (n_poly):   ${n_poly.toFixed(4)}
   - 理论多变功 (W_poly): ${(W_poly / 1000.0).toFixed(2)} kJ/kg
   - 实际干功 (W_dry):    ${(W_real_dry / 1000.0).toFixed(2)} kJ/kg
@@ -216,7 +231,7 @@ function printReportMode5() {
         </head><body>
             <h1>模式五 (MVR 透平式) 计算报告</h1>
             <pre>${lastMode5ResultText}</pre>
-            <footer><p>版本: v7.2</p><p>计算时间: ${new Date().toLocaleString()}</p></footer>
+            <footer><p>版本: v7.4</p><p>计算时间: ${new Date().toLocaleString()}</p></footer>
         </body></html>
     `;
     
@@ -269,6 +284,27 @@ export function initMode5(CP) {
     });
 
     printButtonM5.addEventListener('click', printReportMode5);
+
+    const effSelectorM5 = document.getElementById('eff_selector_m5');
+    const effPolyInputM5 = document.getElementById('eff_poly_m5');
+    effSelectorM5.addEventListener('change', () => {
+        const selectedValue = effSelectorM5.value;
+        if (selectedValue) {
+            effPolyInputM5.value = selectedValue;
+            effPolyInputM5.dispatchEvent(new Event('input'));
+        }
+    });
+
+    // [新增] 模式五动态效率模型UI逻辑
+    const dynamicEffCheckboxM5 = document.getElementById('enable_dynamic_eff_m5');
+    const dynamicEffInputsM5 = document.getElementById('dynamic-eff-inputs-m5');
+    const effPolyLabelM5 = document.querySelector('label[for="eff_poly_m5"]');
+    dynamicEffCheckboxM5.addEventListener('change', () => {
+        const isChecked = dynamicEffCheckboxM5.checked;
+        dynamicEffInputsM5.style.display = isChecked ? 'block' : 'none';
+        effPolyLabelM5.textContent = isChecked ? '基础多变效率 (Eff_poly)' : '多变效率 (Eff_poly)';
+        setButtonStale5();
+    });
 
     console.log("Mode 5 (MVR Turbo) initialized.");
 }

@@ -1,8 +1,9 @@
 // =====================================================================
 // mode2c_air.js: 模式三 (空压机) 模块
-// 版本: v7.0 (五模式重构)
+// 版本: v7.2 (引入动态效率模型)
 // 职责: 1. 作为独立的模式三运行。
-//        2. 更新所有 DOM ID 和变量以匹配 v7.0 结构。
+//        2. 新增效率选型下拉菜单的事件处理逻辑。
+//        3. 新增基于压比的动态效率模型计算逻辑。
 // =====================================================================
 
 // --- 模块内部变量 ---
@@ -88,8 +89,22 @@ async function calculateMode3() {
             
             // 压缩过程
             const p_out_bar = parseFloat(formData.get('p_out_m3'));
-            const eff_isen = parseFloat(formData.get('eff_isen_m3')) / 100.0;
             
+            // [修改] 动态效率模型计算
+            let eff_isen_final = parseFloat(formData.get('eff_isen_m3')) / 100.0;
+            let dynamicModelNotes = "效率模型: 静态 (手动输入)";
+
+            const isDynamic = formData.get('enable_dynamic_eff_m3') === 'on';
+            if (isDynamic) {
+                const pr_design = parseFloat(formData.get('pr_design_m3'));
+                const pr_actual = p_out_bar / p_in_bar;
+                const SENSITIVITY_A = 0.03;
+                const isen_correction_factor = 1 - SENSITIVITY_A * Math.pow(pr_actual - pr_design, 2);
+                const eff_isen_base = parseFloat(formData.get('eff_isen_m3')) / 100.0;
+                eff_isen_final = Math.max(0, eff_isen_base * isen_correction_factor);
+                dynamicModelNotes = `效率模型: 动态 (设计压比=${pr_design.toFixed(2)})`;
+            }
+
             // 流量
             const V_flow_in_m3h = parseFloat(formData.get('V_flow_in_m3'));
             
@@ -126,7 +141,7 @@ async function calculateMode3() {
             const W_isen_kj_kg = H_out_isen_kj_kg - H_in_kj_kg; // 比理论功 (kJ/kg_da)
 
             // 7. 计算实际压缩
-            const W_real_kj_kg = W_isen_kj_kg / eff_isen; // 比实际功 (kJ/kg_da)
+            const W_real_kj_kg = W_isen_kj_kg / eff_isen_final; // 比实际功 (kJ/kg_da)
             const Power_kW = W_real_kj_kg * m_da_kgs; // 轴功率 (kW)
 
             // 8. 根据冷却方式计算排气状态
@@ -203,6 +218,7 @@ async function calculateMode3() {
 
             let resultText = `
 ========= 模式三 (空压机) 计算报告 =========
+${dynamicModelNotes}
 ${cooling_notes}
 ${cooler_notes}
 
@@ -219,7 +235,7 @@ ${cooler_notes}
 
 --- 2. 压缩过程 (P_out, Eff) ---
 出口压力 (P_out):   ${p_out_bar.toFixed(3)} bar
-等熵效率 (Eff_is):  ${(eff_isen * 100).toFixed(1)} %
+等熵效率 (Eff_is):  ${(eff_isen_final * 100).toFixed(1)} %
 ----------------------------------------
   - 理论排气温度 (T_out_is): ${T_out_isen_C.toFixed(2)} °C
   - 理论比功 (W_is):       ${W_isen_kj_kg.toFixed(2)} kJ/kg_da
@@ -285,7 +301,7 @@ function printReportMode3() {
         </head><body>
             <h1>无油压缩机性能计算器 - 模式三 (空压机) 报告</h1>
             <pre>${lastMode3ResultText}</pre>
-            <footer><p>版本: v7.0</p><p>计算时间: ${new Date().toLocaleString()}</p></footer>
+            <footer><p>版本: v7.4</p><p>计算时间: ${new Date().toLocaleString()}</p></footer>
         </body></html>
     `;
     const printContainer = document.createElement('div');
@@ -359,6 +375,28 @@ export function initMode3(CP) {
     });
 
     printButtonM3.addEventListener('click', printReportMode3);
+
+    const effSelectorM3 = document.getElementById('eff_selector_m3');
+    const effIsenInputM3 = document.getElementById('eff_isen_m3');
+    effSelectorM3.addEventListener('change', () => {
+        const selectedValue = effSelectorM3.value;
+        if (selectedValue) {
+            effIsenInputM3.value = selectedValue;
+            effIsenInputM3.dispatchEvent(new Event('input'));
+        }
+    });
+    
+    // [新增] 模式三动态效率模型UI逻辑
+    const dynamicEffCheckboxM3 = document.getElementById('enable_dynamic_eff_m3');
+    const dynamicEffInputsM3 = document.getElementById('dynamic-eff-inputs-m3');
+    const effIsenLabelM3 = document.querySelector('label[for="eff_isen_m3"]');
+    dynamicEffCheckboxM3.addEventListener('change', () => {
+        const isChecked = dynamicEffCheckboxM3.checked;
+        dynamicEffInputsM3.style.display = isChecked ? 'block' : 'none';
+        effIsenLabelM3.textContent = isChecked ? '基础等熵效率 (Eff_is)' : '等熵效率 (Eff_is)';
+        setButtonStale3();
+    });
+
 
     const coolingRadios = [radioCoolingNone, radioCoolingJacket, radioCoolingInjection];
     coolingRadios.forEach(radio => {

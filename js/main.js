@@ -1,6 +1,6 @@
 // =====================================================================
 // main.js: 应用主入口 (总指挥)
-// 版本: v7.2 (最终修复版)
+// 版本: v7.6 (修复 CP_INSTANCE 作用域问题)
 // 职责: 1. 正确导入并调用所有重构后的模块初始化函数。
 //        2. 加载 CoolProp 物性库 (coolprop_loader.js)。
 //        3. 加载 UI 交互 (ui.js)。
@@ -65,10 +65,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             
-            // 6.3 更新所有物性显示框, 显示默认工质信息
+            // 6.3 [关键修复] 更新所有物性显示框, 显示默认工质信息
             fluidInfos.forEach(fi => {
                 if (fi.select && fi.info) {
-                    // 触发一次 updateFluidInfo 来显示初始信息
+                    // 将 CP 实例作为第三个参数传入
                     updateFluidInfo(fi.select, fi.info, CP);
                 }
             });
